@@ -16,10 +16,16 @@ const VIEW_H = 450; // scenery above, status panel below
 const HORIZON = 285;
 const RAIL_Y = 392;
 
-const SECONDS_PER_DAY = 3.2;
+// Every ride lasts 13–18 real seconds, however many days it covers: a
+// one-day hop takes the minimum, the longest legs (5 days) the maximum.
+const RIDE_MIN = 13;
+const RIDE_MAX = 18;
+const LONGEST_LEG_DAYS = 5;
 const HURRY = 5; // speed-up while confirm is held
 const SCROLL = 300; // ground px per second of trip time (at normal speed)
 const START_TOD = 0.9; // you board at night
+const MOONRISE = 0.8; // time of day the moon comes up (0 = dawn), just before sunset
+const MOON_SPAN = 0.3; // how long it's up: sets a little after dawn
 const LOOK = 0.5; // parallax used to place region changes on the far hills and ground
 
 const TRAIN_X = 170; // locomotive's front
@@ -71,7 +77,8 @@ export class TravelScene {
     this.startDay = journey.day;
     this.seed = hashString(`${this.from}-${this.to}`);
 
-    this.duration = this.days * SECONDS_PER_DAY;
+    this.duration =
+      RIDE_MIN + ((RIDE_MAX - RIDE_MIN) * Math.min(1, (this.days - 1) / (LONGEST_LEG_DAYS - 1)));
     this.length = this.duration * SCROLL; // ground px for the whole leg
     this.elapsed = 0; // trip seconds
     this.t = 0; // real seconds, for animation
@@ -236,8 +243,8 @@ export class TravelScene {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, HORIZON + 40);
 
-    // Stars and moon at night; the sun by day. West is left, so the sun
-    // rises behind the train (right) and sets ahead of it.
+    // Stars and moon at night; the sun by day. West is left, so both rise
+    // behind the train (right) and set ahead of it.
     const night = curve(DARK, tod);
     if (night > 0.3 && weather !== 'Rain') {
       const r = seeded(7);
@@ -247,15 +254,29 @@ export class TravelScene {
         ctx.fillRect(r() * W, r() * (HORIZON - 60), 2, 2);
       }
       ctx.globalAlpha = 1;
-      const mx = W * 0.72;
-      ctx.fillStyle = '#efe6c8';
+    }
+    // The moon crosses the sky from moonrise to moonset, wrapping past
+    // midnight (time of day 1 → 0).
+    const moonT = (tod - MOONRISE + 1) % 1;
+    if (moonT < MOON_SPAN && weather !== 'Rain') {
+      const k = moonT / MOON_SPAN;
+      const mx = W + 40 - k * (W + 80);
+      const my = HORIZON - Math.sin(Math.PI * k) * 220;
+      const glow = ctx.createRadialGradient(mx, my, 10, mx, my, 90);
+      glow.addColorStop(0, 'rgba(230, 230, 210, 0.35)');
+      glow.addColorStop(1, 'rgba(230, 230, 210, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(mx - 90, my - 90, 180, 180);
+      ctx.fillStyle = '#efe9d4';
       ctx.beginPath();
-      ctx.arc(mx, 80, 22, 0, Math.PI * 2);
+      ctx.arc(mx, my, 22, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = top;
-      ctx.beginPath();
-      ctx.arc(mx + 9, 74, 20, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillStyle = 'rgba(160, 155, 140, 0.45)'; // the man in the moon
+      for (const [dx, dy, r] of [[-7, -5, 6], [6, -8, 4], [4, 6, 7], [-8, 9, 3]]) {
+        ctx.beginPath();
+        ctx.arc(mx + dx, my + dy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     if (tod < 0.86 && weather !== 'Rain') {
       const k = tod / 0.86;
