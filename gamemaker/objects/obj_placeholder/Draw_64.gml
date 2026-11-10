@@ -1,0 +1,1 @@
+draw_text(40, 40, room_get_name(room) + " - press B / Esc to go back");

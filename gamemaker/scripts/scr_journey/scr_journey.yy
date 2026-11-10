@@ -1,0 +1,13 @@
+{
+  "$GMScript":"v1",
+  "%Name":"scr_journey",
+  "isCompatibility":false,
+  "isDnD":false,
+  "name":"scr_journey",
+  "parent":{
+    "name":"HoboQuest",
+    "path":"HoboQuest.yyp",
+  },
+  "resourceType":"GMScript",
+  "resourceVersion":"2.0",
+}

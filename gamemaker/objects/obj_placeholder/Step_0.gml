@@ -1,0 +1,1 @@
+if (input_pressed("back")) room_goto(rm_map);

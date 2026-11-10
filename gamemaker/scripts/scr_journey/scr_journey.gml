@@ -1,0 +1,1 @@
+global.journey = { route: "", stop: 0, day: 0, arrests: 0, missed: 0 };
