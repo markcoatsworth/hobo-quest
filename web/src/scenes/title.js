@@ -2,9 +2,9 @@ import { Menu } from '../core/menu.js';
 import { drawPrompts, roundRect } from '../core/prompts.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
 import { hasSave, loadJourney, newJourney } from '../core/save.js';
+import { AreaScene } from './area.js';
 import { MapScene } from './map.js';
 import { TravelScene } from './travel.js';
-import { PlaceholderScene } from './placeholder.js';
 import { CutsceneScene } from './cutscene.js';
 import { CUTSCENES } from '../cutscenes/index.js';
 
@@ -47,7 +47,8 @@ export class TitleScene {
       case 'new':
         this.game.setScene(
           new CutsceneScene(this.game, CUTSCENES.opening, {
-            next: () => new MapScene(this.game, newJourney()),
+            // Straight into the farmyard, where the sheriff left you.
+            next: () => new AreaScene(this.game, newJourney(), 'new_york', 'family_home', { fromCutscene: true }),
           }),
         );
         break;
@@ -58,13 +59,7 @@ export class TitleScene {
         break;
       }
       case 'settings':
-        this.game.setScene(
-          new PlaceholderScene(this.game, {
-            heading: 'Settings',
-            body: 'Audio, display and control options will live here.',
-            returnTo: 'settings',
-          }),
-        );
+        this.game.openSettings();
         break;
       case 'exit':
         this.confirmExit = new Menu(

@@ -1,8 +1,8 @@
-// New York: the family home up the Hudson (home.js), and the city itself:
-// the Bowery at dusk, under the Third Avenue El. The rail yard is only
-// reachable through the city.
+// New York: the family home up the Hudson (family_home/), and the city
+// itself: the Bowery at dusk, under the Third Avenue El. The rail yard is
+// only reachable through the city.
 
-import home from './home.js';
+import familyHome from './family_home/index.js';
 
 export default {
   id: 'new_york',
@@ -10,7 +10,9 @@ export default {
   at: [995, 322],
   blurb: 'Shantytowns in the parks and breadlines around the block. Time to head west.',
 
-  home,
+  areas: {
+    ...familyHome,
+  },
 
   town: {
     mapLabel: 'Head into the City',

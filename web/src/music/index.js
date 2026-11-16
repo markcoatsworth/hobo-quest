@@ -9,7 +9,7 @@
 //   }
 //
 // PLAYLISTS: the music for each region of the country, keyed by the id of
-// the city it belongs to (src/cities/). While you're in that city, its
+// the city it belongs to (src/locations/). While you're in that city, its
 // playlist shuffles (never the same song twice in a row unless it's the
 // only one). Riding a freight, you hear the playlist of the city you left
 // until you arrive. A city with no playlist of its own keeps the music of

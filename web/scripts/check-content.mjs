@@ -1,17 +1,28 @@
 // Sanity checks on the hand-written content: every rail line joins two real
-// cities, every train in a yard runs along a line that exists, and the
-// music's playlists and cues name real tracks and cities.
+// cities, every train in a yard runs along a line that exists, every exit
+// leads to a real area, and the music's playlists and cues name real
+// tracks and cities.
 // Run with `npm run check`.
 
-import { CITIES } from '../src/cities/index.js';
+import { LOCATIONS } from '../src/locations/index.js';
 import { CUTSCENES } from '../src/cutscenes/index.js';
 import { PLAYLISTS, TRACKS } from '../src/music/index.js';
 import { rail_check } from '../src/systems/rail.js';
 
 const problems = rail_check();
 
+// Exits lead to areas that exist.
+for (const loc of Object.values(LOCATIONS)) {
+  const areas = { town: loc.town, ...(loc.areas ?? {}) };
+  for (const [id, area] of Object.entries(areas)) {
+    for (const exit of area?.exits ?? []) {
+      if (!areas[exit.to]) problems.push(`${loc.id} area "${id}": exit to "${exit.to}", which isn't an area of ${loc.id}`);
+    }
+  }
+}
+
 for (const [region, ids] of Object.entries(PLAYLISTS)) {
-  if (!CITIES[region]) problems.push(`playlist "${region}": no such city`);
+  if (!LOCATIONS[region]) problems.push(`playlist "${region}": no such city`);
   for (const id of ids) if (!TRACKS[id]) problems.push(`playlist "${region}": no track "${id}"`);
 }
 for (const c of Object.values(CUTSCENES)) {

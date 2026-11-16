@@ -3,6 +3,8 @@
 // same actions. This mirrors how the GameMaker build should be structured
 // (and what Steam Input expects), so the scheme ports over as-is.
 
+import { settings_get } from './settings.js';
+
 // Keyboard bindings use KeyboardEvent.code, so they follow physical key
 // position regardless of layout (WASD works on AZERTY).
 const KEY_BINDINGS = {
@@ -14,6 +16,7 @@ const KEY_BINDINGS = {
   back: ['Escape', 'Backspace'],
   pause: ['Escape', 'KeyP'],
   sprint: ['ShiftLeft', 'ShiftRight'],
+  mute: ['KeyM'], // keyboard only; on a controller it's in Settings
 };
 
 // "standard" mapping indices (https://w3c.github.io/gamepad/#remapping),
@@ -30,6 +33,7 @@ const PAD_BINDINGS = {
   back: [1],
   pause: [9],
   sprint: [2, 7],
+  mute: [],
 };
 
 // Analog movement: below this the stick counts as centred.
@@ -56,7 +60,8 @@ export class Input {
     this.stickDir = { up: false, down: false, left: false, right: false };
     this.stick = { x: 0, y: 0 }; // analog left stick, deadzone applied
     this.state = Object.fromEntries(ACTIONS.map((a) => [a, { down: false, pressed: false, repeated: false, held: 0, repeatAt: 0 }]));
-    // Which device the player last touched, for button prompts.
+    // Which device the player last touched, for button prompts:
+    // 'keyboard' | 'gamepad' | 'mouse' (set by main.js).
     this.lastDevice = 'keyboard';
     this.listeners = new Set();
 
@@ -190,7 +195,7 @@ export class Input {
 
   /** Short rumble on supporting browsers (Chromium); silently a no-op elsewhere. */
   rumble(duration = 60, strong = 0.2, weak = 0.4) {
-    if (this.lastDevice !== 'gamepad' || !navigator.getGamepads) return;
+    if (this.lastDevice !== 'gamepad' || !navigator.getGamepads || !settings_get().rumble) return;
     for (const pad of navigator.getGamepads()) {
       pad?.vibrationActuator?.playEffect?.('dual-rumble', {
         duration,

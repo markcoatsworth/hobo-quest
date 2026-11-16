@@ -29,9 +29,9 @@ export default {
     kid: 'Kid',
   },
 
+  // Talk and country alternate: a few lines in the car, then the valley
+  // going by, each stretch of road answering what was just said.
   shots: [
-    // About 48 seconds of the valley before anyone speaks: the country going
-    // by, cut with the two of them riding in silence.
     {
       // Out on the river road.
       duration: 7.5,
@@ -39,14 +39,21 @@ export default {
       draw: drawRoadShot,
     },
     {
+      // In the car, silent: the kid watching the country out the side window.
+      duration: 6,
+      draw: (ctx, t, cue) => drawWindshieldShot(ctx, t, cue, { kid: -3, sheriff: 0 }),
+    },
+    {
       // The mill, shut, men waiting at the gate anyway.
       duration: 7,
       draw: drawMillShot,
     },
     {
-      // In the car: the kid watching it all go by out the side window.
-      duration: 6,
-      draw: (ctx, t, cue) => drawWindshieldShot(ctx, t, cue, { kid: -3, sheriff: 0 }),
+      // In the car: the first thing said.
+      lead: 2,
+      tail: 2,
+      draw: (ctx, t, cue) => drawWindshieldShot(ctx, t, cue, { kid: -3 }),
+      lines: [{ who: 'sheriff', text: 'Judge signed your release this morning, kid. Three weeks early.' }],
     },
     {
       // A farm the bank took.
@@ -54,38 +61,61 @@ export default {
       draw: drawFarmsteadShot,
     },
     {
+      // In the car: why they let the kid out.
+      lead: 1.5,
+      tail: 1.5,
+      draw: (ctx, t, cue) => drawWindshieldShot(ctx, t, cue, { kid: 0, sheriff: -3 }),
+      lines: [
+        { who: 'kid', text: 'Nobody gets out of county early. Is it because of Dad?' },
+        { who: 'sheriff', text: 'It is. I’m sorry, kid. They found him Tuesday. Doc says his heart just quit on him.' },
+      ],
+    },
+    {
       // A river town: the bank closed, a line at the soup kitchen.
       duration: 7,
       draw: drawBreadlineShot,
     },
     {
-      // In the car: the sheriff glances over.
-      duration: 6,
-      draw: (ctx, t, cue) => drawWindshieldShot(ctx, t, cue, { kid: 0, sheriff: t > 2.5 ? -3 : 0 }),
-    },
-    {
-      // A freight along the river, riders on top.
-      duration: 7.5,
-      draw: drawFreightShot,
-    },
-    {
-      // In the car, and the talking starts.
+      // In the car: who's left at home.
       lead: 1.5,
       tail: 1.5,
-      draw: drawWindshieldShot,
+      draw: (ctx, t, cue) => drawWindshieldShot(ctx, t, cue, { kid: -3 }),
       lines: [
-        { who: 'sheriff', text: 'Judge says you can go. Three weeks early.' },
-        { who: 'kid', text: 'Because of Dad.' },
-        { who: 'sheriff', text: 'Because of your dad. I’m sorry, kid. Doc says his heart just quit on him.' },
-        { who: 'sheriff', text: 'You got any other family around here?' },
+        { who: 'sheriff', text: 'With your father gone, you got any other family around here? Anybody to take you in?' },
         { who: 'kid', text: 'Not anymore. Mom and my sister left last year.' },
         { who: 'kid', text: 'After the mill let Dad go, he took to drinking. Mom couldn’t take it.' },
-        { who: 'sheriff', text: 'Where’d they go?' },
+      ],
+    },
+    {
+      // Further down the river road.
+      duration: 7,
+      draw: (ctx, t) => drawRoadShot(ctx, t + 40),
+    },
+    {
+      // In the car: where they went.
+      lead: 1.5,
+      tail: 1.5,
+      draw: (ctx, t, cue) => drawWindshieldShot(ctx, t, cue, { kid: -3, sheriff: -3 }),
+      lines: [
+        { who: 'sheriff', text: 'Your mother and sister. You know where they went?' },
         { who: 'kid', text: 'West. California, maybe. Mom said she’d write once they got settled.' },
         { who: 'kid', text: 'If she ever did, Dad never showed me.' },
         { who: 'sheriff', text: 'So you’ve got no way to reach them.' },
         { who: 'kid', text: 'No, sir.' },
-        { who: 'sheriff', text: 'Here. Five dollars.', beat: 'offer' },
+      ],
+    },
+    {
+      // A freight along the river, riders on top, going west.
+      duration: 7.5,
+      draw: drawFreightShot,
+    },
+    {
+      // In the car, nearly there: the five dollars.
+      lead: 2,
+      tail: 1.5,
+      draw: (ctx, t, cue) => drawWindshieldShot(ctx, t, cue, { sheriff: -3 }),
+      lines: [
+        { who: 'sheriff', text: 'Listen. Here. Five dollars.', beat: 'offer' },
         { who: 'kid', text: 'I can’t take that.' },
         { who: 'sheriff', text: 'It ain’t charity. Call it what the county owes you for three weeks of bad coffee.', beat: 'taken' },
         { who: 'sheriff', text: 'Get yourself fed. Get back on your feet.' },
@@ -96,6 +126,8 @@ export default {
       lead: 3.2,
       tail: 5,
       dialog: 'top',
+      // No fade: the game picks up on this very picture (the family home).
+      fadeOut: false,
       draw: drawHouseShot,
       lines: [
         { who: 'sheriff', text: 'This is you.' },

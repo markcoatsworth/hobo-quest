@@ -99,6 +99,7 @@ export default {
   },
 
   yard: {
+    fromMap: false, // walk through the city to reach it
     player: 360,
     tracks: [
       { x: 190, cars: 'BB.BRB' },

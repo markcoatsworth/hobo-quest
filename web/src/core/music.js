@@ -11,9 +11,10 @@
 // Browsers won't start sound until the player has pressed a key or clicked
 // (a gamepad button doesn't count), so a song may wait for that.
 
+import { MUSIC_STEPS, settings_get, settings_on } from './settings.js';
 import { PLAYLISTS, TRACKS } from '../music/index.js';
 
-const VOLUME = 0.55;
+const VOLUME = 0.55; // full volume, with the music setting at its top step
 const FADE = 1.5; // seconds to fade a song out when another takes over
 const STEP = 50; // ms between fade steps
 
@@ -21,6 +22,17 @@ let region = null; // the playlist in use: a key of PLAYLISTS
 let current = null; // { id, audio, cued }
 let lastId = null;
 let blocked = false; // waiting for the player's first key or click
+
+/** The volume the music plays at, from the player's settings. */
+function level() {
+  const s = settings_get();
+  return s.muted ? 0 : (VOLUME * s.music) / MUSIC_STEPS;
+}
+
+// Volume and mute apply straight away to whatever's playing.
+settings_on(() => {
+  if (current) current.audio.volume = level();
+});
 
 /**
  * Follow the journey: the region is the latest city on the trail (src/core/
@@ -83,7 +95,7 @@ function pickNext() {
 function startTrack(id, cued = false) {
   if (!id) return;
   const audio = new Audio(TRACKS[id].file);
-  audio.volume = VOLUME;
+  audio.volume = level();
   audio.preload = 'auto';
   const track = { id, audio, cued };
   current = track;
@@ -128,7 +140,7 @@ function unblock() {
 }
 
 function fadeOut(audio) {
-  const drop = (VOLUME * STEP) / (FADE * 1000);
+  const drop = Math.max(0.001, (audio.volume * STEP) / (FADE * 1000));
   const timer = setInterval(() => {
     audio.volume = Math.max(0, audio.volume - drop);
     if (audio.volume <= 0 || audio.paused) {

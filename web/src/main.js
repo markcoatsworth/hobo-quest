@@ -4,6 +4,8 @@ import { Backdrop } from './core/backdrop.js';
 import { Input } from './core/input.js';
 import { COLORS, FONTS, W, H } from './core/screen.js';
 import { TitleScene } from './scenes/title.js';
+import { CornerButtons, toggleMute } from './ui/corner.js';
+import { SettingsPanel } from './ui/settings.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -31,22 +33,31 @@ function toWorld(e) {
 canvas.addEventListener('pointermove', (e) => {
   toWorld(e);
   pointer.moved = true;
+  game.input.lastDevice = 'mouse';
 });
 canvas.addEventListener('pointerdown', (e) => {
   toWorld(e);
   pointer.moved = true;
   pointer.clicked = true;
+  game.input.lastDevice = 'mouse';
 });
 
 const game = {
   input: new Input(),
   backdrop: new Backdrop(),
   scene: null,
+  // Shown over the scene, which waits while it's open (Settings from the
+  // title or the corner gear). Has update() returning 'close', and draw().
+  overlay: null,
   toast: null,
   setScene(scene) {
     this.scene = scene;
   },
+  openSettings() {
+    if (!(this.overlay instanceof SettingsPanel)) this.overlay = new SettingsPanel(this);
+  },
 };
+game.corner = new CornerButtons(game);
 
 // Dev builds only: a handle for poking at the game from the console/tests.
 if (import.meta.env.DEV) window.__game = game;
@@ -66,13 +77,15 @@ function drawToast(dt) {
   }
   ctx.save();
   ctx.globalAlpha = Math.min(1, toast.t * 2);
+  // Top centre, clear of the status (top left) and the corner buttons.
   ctx.font = `18px ${FONTS.body}`;
   const w = Math.min(ctx.measureText(toast.text).width + 40, W - 80);
   ctx.fillStyle = COLORS.panel;
-  ctx.fillRect(40, 30, w, 40);
+  ctx.fillRect(W / 2 - w / 2, 76, w, 40);
   ctx.fillStyle = COLORS.cream;
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(toast.text, 60, 51, w - 40);
+  ctx.fillText(toast.text, W / 2, 97, w - 40);
   ctx.restore();
 }
 
@@ -84,7 +97,14 @@ function frame(now) {
 
   game.input.update(dt);
   game.backdrop.update(dt);
-  game.scene.update(dt, game.input, pointer);
+  if (game.input.pressed('mute')) toggleMute(game);
+  // The corner buttons get first look at a click.
+  if (game.corner.update(pointer)) pointer.clicked = false;
+  if (game.overlay) {
+    if (game.overlay.update(dt, game.input, pointer) === 'close') game.overlay = null;
+  } else {
+    game.scene.update(dt, game.input, pointer);
+  }
   pointer.moved = pointer.clicked = false;
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -96,6 +116,8 @@ function frame(now) {
   ctx.rect(0, 0, W, H);
   ctx.clip();
   game.scene.draw(ctx);
+  game.overlay?.draw(ctx);
+  game.corner.draw(ctx);
   drawToast(dt);
   ctx.restore();
 

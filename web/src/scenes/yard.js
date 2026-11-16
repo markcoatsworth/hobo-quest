@@ -3,15 +3,17 @@
 // before it pulls out. Bulls (railroad police) patrol with lanterns; parked
 // cars block their view, shunting cuts of cars will knock you flat.
 
+import { formatDate } from '../core/calendar.js';
 import { drawPrompts } from '../core/prompts.js';
 import { seeded } from '../core/rng.js';
 import { saveJourney } from '../core/save.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
 import { Menu } from '../core/menu.js';
-import { CITIES } from '../cities/index.js';
+import { LOCATIONS } from '../locations/index.js';
 import { MapScene } from './map.js';
 import { TravelScene } from './travel.js';
 import { panel, TitleScene } from './title.js';
+import { PauseMenu } from '../ui/pause.js';
 
 const TOP = 72; // fence lines
 const BOTTOM = 676;
@@ -40,7 +42,7 @@ const HOP_RANGE = 34;
 const TRAIN_ACCEL = 11; // px/s² once it departs
 const TRAIN_MAX = 95;
 
-// Car letters in a city's yard layout (see src/cities/index.js).
+// Car letters in a city's yard layout (see src/locations/index.js).
 const CAR_TYPES = {
   B: { kind: 'box', color: '#6b2e22' },
   b: { kind: 'box', color: '#4e3a2c' },
@@ -68,7 +70,7 @@ export class YardScene {
     this.game = game;
     this.journey = journey;
     this.from = journey.at;
-    this.layout = CITIES[this.from].yard;
+    this.layout = LOCATIONS[this.from].yard;
     this.trainDef = todaysTrain(this.layout, journey.day);
     this.to = this.trainDef.to;
     this.t = 0;
@@ -181,10 +183,6 @@ export class YardScene {
     if (this.outcome) return this.updateOutcome(dt, input, pointer);
 
     if (this.paused) {
-      if (input.pressed('pause') || input.pressed('back')) {
-        this.paused = null;
-        return;
-      }
       const choice = this.paused.update(dt, input, pointer);
       if (choice === 'resume') this.paused = null;
       else if (choice === 'map') this.game.setScene(new MapScene(this.game, this.journey));
@@ -192,14 +190,10 @@ export class YardScene {
       return;
     }
     if (input.pressed('pause')) {
-      this.paused = new Menu(
-        [
-          { id: 'resume', label: 'Resume' },
-          { id: 'map', label: 'Back to the Map' },
-          { id: 'title', label: 'Quit to Title' },
-        ],
-        { x: W / 2, y: 330, rowH: 54, width: 320, fontSize: 28 },
-      );
+      this.paused = new PauseMenu(this.game, [
+        { id: 'map', label: 'Back to the Map' },
+        { id: 'title', label: 'Quit to Title' },
+      ]);
       return;
     }
 
@@ -466,7 +460,7 @@ export class YardScene {
 
     this.drawHud(ctx);
     if (this.intro > 0 && !this.outcome) this.drawIntro(ctx);
-    if (this.paused) this.drawPause(ctx);
+    if (this.paused) this.paused.draw(ctx);
     if (this.outcome) this.drawOutcome(ctx);
   }
 
@@ -656,10 +650,10 @@ export class YardScene {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = COLORS.cream;
     ctx.font = `24px ${FONTS.title}`;
-    ctx.fillText(`${CITIES[this.from].name} Yard`, 24, 30);
+    ctx.fillText(`${LOCATIONS[this.from].name} Yard`, 24, 30);
     ctx.font = `16px ${FONTS.body}`;
     ctx.fillStyle = 'rgba(244, 230, 200, 0.7)';
-    ctx.fillText(`Freight to ${CITIES[this.to].name} on the east track`, 24, 56);
+    ctx.fillText(`${formatDate(this.journey.day)}  ·  Freight to ${LOCATIONS[this.to].name} on the east track`, 24, 56);
 
     ctx.textAlign = 'center';
     const left = this.train.departIn;
@@ -674,10 +668,6 @@ export class YardScene {
       ctx.fillText('She’s pulling out!', W / 2, 36);
     }
 
-    ctx.textAlign = 'right';
-    ctx.fillStyle = COLORS.cream;
-    ctx.font = `20px ${FONTS.body}`;
-    ctx.fillText(`Day ${this.journey.day}`, W - 24, 30);
     ctx.restore();
 
     drawPrompts(
@@ -709,24 +699,11 @@ export class YardScene {
     ctx.restore();
   }
 
-  drawPause(ctx) {
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, 0, W, H);
-    panel(ctx, W / 2 - 220, 220, 440, 250, '#1c1212');
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = COLORS.cream;
-    ctx.font = `32px ${FONTS.title}`;
-    ctx.fillText('Paused', W / 2, 275);
-    ctx.restore();
-    this.paused.draw(ctx, this.t);
-  }
-
   drawOutcome(ctx) {
     const o = this.outcome;
-    const city = CITIES[this.from].name;
+    const city = LOCATIONS[this.from].name;
     const text = {
-      boarded: ['Aboard!', `Next stop, ${CITIES[this.to].name}.`],
+      boarded: ['Aboard!', `Next stop, ${LOCATIONS[this.to].name}.`],
       caught: ['Caught by the bull', `A night in the ${city} lockup. You lose a day.`],
       missed: ['Missed her', 'The freight pulled out without you. The next one leaves tomorrow.'],
     }[o];

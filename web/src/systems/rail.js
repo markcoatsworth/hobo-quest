@@ -8,7 +8,7 @@
 //
 // {
 //   "lines": [
-//     { "from": "dallas", "to": "el_paso",   two city ids (src/cities/); the
+//     { "from": "dallas", "to": "el_paso",   two city ids (src/locations/); the
 //                                           line runs from -> to only
 //       "days": 2,                          days the ride takes
 //       "miles": 588,                       for the travel panel
@@ -28,7 +28,7 @@
 // data with GameMaker-style prefixed names, so they port line for line.
 
 import NETWORK from '../rail/network.json' with { type: 'json' };
-import { CITIES } from '../cities/index.js';
+import { LOCATIONS } from '../locations/index.js';
 
 /** Every line, as written in network.json (for drawing the map). */
 export function rail_lines() {
@@ -67,7 +67,7 @@ export function rail_leg_miles(from, to) {
 
 /** The track of a line, both cities included. */
 export function rail_leg_path(from, to) {
-  return [CITIES[from].at, ...rail_find(from, to).via, CITIES[to].at];
+  return [LOCATIONS[from].at, ...rail_find(from, to).via, LOCATIONS[to].at];
 }
 
 /** The scenery region at fraction f (0..1) of the way along a line. */
@@ -93,14 +93,14 @@ export function rail_check() {
   const seen = [];
   for (const line of NETWORK.lines) {
     const name = `${line.from}-${line.to}`;
-    for (const id of [line.from, line.to]) if (!CITIES[id]) problems.push(`line ${name}: no city "${id}"`);
+    for (const id of [line.from, line.to]) if (!LOCATIONS[id]) problems.push(`line ${name}: no city "${id}"`);
     if (seen.includes(name)) problems.push(`line ${name}: listed twice`);
     if (seen.includes(`${line.to}-${line.from}`)) problems.push(`line ${name}: the reverse is a line too, but there's no going back`);
     seen.push(name);
     if (!(line.days >= 1)) problems.push(`line ${name}: days must be 1 or more`);
     if (!line.scenery.length || line.scenery[0][0] !== 0) problems.push(`line ${name}: scenery must start at 0`);
   }
-  for (const city of Object.values(CITIES)) {
+  for (const city of Object.values(LOCATIONS)) {
     for (const train of city.yard?.trains ?? []) {
       if (!rail_connected(city.id, train.to)) problems.push(`${city.id} yard: train to "${train.to}" but no line runs there from ${city.id}`);
     }

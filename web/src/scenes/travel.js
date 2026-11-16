@@ -4,15 +4,15 @@
 
 import { music_follow_trail } from '../core/music.js';
 import { formatDate } from '../core/calendar.js';
-import { Menu } from '../core/menu.js';
 import { drawPrompts } from '../core/prompts.js';
 import { hashString, seeded } from '../core/rng.js';
 import { saveJourney } from '../core/save.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
-import { CITIES } from '../cities/index.js';
+import { LOCATIONS } from '../locations/index.js';
 import { rail_leg_days, rail_leg_miles, rail_scenery_at } from '../systems/rail.js';
 import { MapScene } from './map.js';
-import { panel, TitleScene } from './title.js';
+import { TitleScene } from './title.js';
+import { PauseMenu } from '../ui/pause.js';
 
 const VIEW_H = 450; // scenery above, status panel below
 const HORIZON = 285;
@@ -124,20 +124,13 @@ export class TravelScene {
     this.t += dt;
 
     if (this.paused) {
-      if (input.pressed('pause') || input.pressed('back')) this.paused = null;
-      const choice = this.paused?.update(dt, input, pointer);
+      const choice = this.paused.update(dt, input, pointer);
       if (choice === 'resume') this.paused = null;
       else if (choice === 'title') this.game.setScene(new TitleScene(this.game));
       return;
     }
     if (input.pressed('pause')) {
-      this.paused = new Menu(
-        [
-          { id: 'resume', label: 'Keep Riding' },
-          { id: 'title', label: 'Quit to Title' },
-        ],
-        { x: W / 2, y: 330, rowH: 54, width: 320, fontSize: 28 },
-      );
+      this.paused = new PauseMenu(this.game, [{ id: 'title', label: 'Quit to Title' }], { resume: 'Keep Riding' });
       return;
     }
 
@@ -242,7 +235,7 @@ export class TravelScene {
     ctx.restore();
 
     this.drawPanel(ctx, weather);
-    if (this.paused) this.drawPause(ctx);
+    if (this.paused) this.paused.draw(ctx);
   }
 
   drawSky(ctx, tod, weather) {
@@ -637,7 +630,7 @@ export class TravelScene {
     const n = stops.length;
     for (const i of [n - 1, n - 2, 0]) {
       if (placed.some((p) => p.i === i)) continue;
-      const name = CITIES[stops[i]].name;
+      const name = LOCATIONS[stops[i]].name;
       const half = ctx.measureText(name).width / 2 + 8;
       const above = i % 2 === 0;
       const box = { i, above, l: stopX[i] - half, r: stopX[i] + half };
@@ -656,7 +649,7 @@ export class TravelScene {
     const rows = [
       ['Date', formatDate(this.day)],
       ['Weather', weather],
-      ['Next stop', CITIES[this.to].name],
+      ['Next stop', LOCATIONS[this.to].name],
     ];
     const rows2 = [
       ['Miles to go', `${Math.max(0, Math.round(this.miles * (1 - this.progress)))}`],
@@ -691,18 +684,6 @@ export class TravelScene {
     );
   }
 
-  drawPause(ctx) {
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, 0, W, H);
-    panel(ctx, W / 2 - 220, 220, 440, 210, '#1c1212');
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = COLORS.cream;
-    ctx.font = `30px ${FONTS.title}`;
-    ctx.fillText('Resting', W / 2, 272);
-    ctx.restore();
-    this.paused.draw(ctx, this.t);
-  }
 }
 
 // ------------------------------------------------------------- scenery bits

@@ -9,10 +9,11 @@ import { music_follow_trail } from '../core/music.js';
 import { clearJourney, GOAL_CITY, saveJourney } from '../core/save.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
 import { formatDate } from '../core/calendar.js';
-import { CITIES } from '../cities/index.js';
+import { LOCATIONS } from '../locations/index.js';
 import { rail_leg_days, rail_leg_path, rail_lines } from '../systems/rail.js';
 import { panel, TitleScene } from './title.js';
-import { TownScene } from './town.js';
+import { PauseMenu } from '../ui/pause.js';
+import { AreaScene } from './area.js';
 import { todaysTrain, YardScene } from './yard.js';
 
 // Source-image pixels -> screen. Crops the source to the lower 48.
@@ -69,7 +70,7 @@ export class MapScene {
 
   /** The departing freights in this city's yard, in the yard's order. */
   get trains() {
-    return CITIES[this.here].yard?.trains ?? [];
+    return LOCATIONS[this.here].yard?.trains ?? [];
   }
 
   enter() {
@@ -79,7 +80,7 @@ export class MapScene {
       clearJourney();
       this.menu = new Menu(
         [
-          { id: 'explore', label: `Explore ${CITIES[this.here].name}` },
+          { id: 'explore', label: `Explore ${LOCATIONS[this.here].name}` },
           { id: 'title', label: 'Back to Title' },
         ],
         { x: PANEL.x + PANEL.w / 2, y: 580, rowH: 50, width: 290, fontSize: 22 },
@@ -88,9 +89,12 @@ export class MapScene {
     }
     this.mode = 'here';
     saveJourney(this.journey);
-    const city = CITIES[this.here];
+    const city = LOCATIONS[this.here];
     const items = [];
-    if (city.home) items.push({ id: 'home', label: city.home.mapLabel ?? `Explore ${city.home.name}` });
+    // Areas that can be reached straight from the map, then the main street.
+    for (const [id, area] of Object.entries(city.areas ?? {})) {
+      if (area.mapLabel) items.push({ id: `area:${id}`, label: area.mapLabel });
+    }
     items.push({ id: 'explore', label: city.town.mapLabel ?? `Explore ${city.name}` });
     // Some yards can only be reached through town.
     if (city.yard?.fromMap !== false) items.push({ id: 'hop', label: 'Sneak into the Yard', disabled: this.trains.length === 0 });
@@ -104,17 +108,27 @@ export class MapScene {
   update(dt, input, pointer) {
     this.t += dt;
 
-    if (input.pressed('back') || input.pressed('pause')) this.menu.select('title');
+    if (this.paused) {
+      const choice = this.paused.update(dt, input, pointer);
+      if (choice === 'resume') this.paused = null;
+      else if (choice === 'title') this.game.setScene(new TitleScene(this.game));
+      return;
+    }
+    if (input.pressed('pause')) {
+      this.paused = new PauseMenu(this.game, [{ id: 'title', label: 'Quit to Title' }]);
+      return;
+    }
+    if (input.pressed('back')) this.menu.select('title');
     const choice = this.menu.update(dt, input, pointer);
     if (!choice) return;
 
     if (choice === 'title') {
       // Progress is already saved at every stop.
       this.game.setScene(new TitleScene(this.game));
-    } else if (choice === 'home') {
-      this.game.setScene(new TownScene(this.game, this.journey, this.here, 'home'));
+    } else if (choice.startsWith('area:')) {
+      this.game.setScene(new AreaScene(this.game, this.journey, this.here, choice.slice(5)));
     } else if (choice === 'explore') {
-      this.game.setScene(new TownScene(this.game, this.journey, this.here));
+      this.game.setScene(new AreaScene(this.game, this.journey, this.here));
     } else if (choice === 'hop') {
       this.game.setScene(new YardScene(this.game, this.journey));
     }
@@ -134,17 +148,19 @@ export class MapScene {
     ctx.font = `40px ${FONTS.title}`;
     ctx.textBaseline = 'middle';
     ctx.fillText('Hobo Quest', 28, 44);
+    // Status beside the title; the top right is for the corner buttons.
+    const titleW = ctx.measureText('Hobo Quest').width;
     ctx.font = `20px ${FONTS.body}`;
-    ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(244, 230, 200, 0.8)';
     const stats = [formatDate(this.journey.day)];
-    if (this.journey.arrests) stats.push(`Arrests ${this.journey.arrests}`);
-    ctx.fillText(stats.join('   '), W - 28, 46);
+    if (this.journey.arrests) stats.push(`${this.journey.arrests} ${this.journey.arrests === 1 ? 'arrest' : 'arrests'}`);
+    ctx.fillText(stats.join('  ·  '), 28 + titleW + 30, 47);
     ctx.restore();
 
     this.drawPanel(ctx);
 
-    drawPrompts(ctx, input, [['confirm', 'Select']], W - 28, H - 14);
+    drawPrompts(ctx, input, [['confirm', 'Select'], ['pause', 'Menu']], W - 28, H - 14);
+    if (this.paused) this.paused.draw(ctx);
   }
 
   drawMap(ctx) {
@@ -184,7 +200,7 @@ export class MapScene {
     for (let i = 0; i < trail.length - 1; i++) this.strokeRoute(ctx, rail_leg_path(trail[i], trail[i + 1]), 1, false);
 
     // Every city; the ones reached, and the ones a freight from here goes to, in full ink.
-    for (const id of Object.keys(CITIES)) this.drawCity(ctx, id, trail.includes(id) || out.includes(id));
+    for (const id of Object.keys(LOCATIONS)) this.drawCity(ctx, id, trail.includes(id) || out.includes(id));
   }
 
   strokeRoute(ctx, pts, alpha, dashed) {
@@ -206,7 +222,7 @@ export class MapScene {
   }
 
   drawCity(ctx, id, onRoute) {
-    const [x, y] = toScreen(CITIES[id].at);
+    const [x, y] = toScreen(LOCATIONS[id].at);
     const isHere = id === this.here;
     ctx.save();
     if (isHere) {
@@ -228,9 +244,9 @@ export class MapScene {
     ctx.textBaseline = 'middle';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(236, 219, 182, 0.85)';
-    ctx.strokeText(CITIES[id].name, x + dx, y + dy);
+    ctx.strokeText(LOCATIONS[id].name, x + dx, y + dy);
     ctx.fillStyle = onRoute || isHere ? '#1a1110' : 'rgba(26,17,16,0.45)';
-    ctx.fillText(CITIES[id].name, x + dx, y + dy);
+    ctx.fillText(LOCATIONS[id].name, x + dx, y + dy);
     ctx.restore();
   }
 
@@ -243,7 +259,7 @@ export class MapScene {
     ctx.textBaseline = 'middle';
 
     if (this.mode === 'here') {
-      const city = CITIES[this.here];
+      const city = LOCATIONS[this.here];
       heading(ctx, city.name, cx, y + 50);
       wrap(ctx, city.blurb, cx, y + 110, w - 50, 26, 19);
       ctx.fillStyle = COLORS.accent;
@@ -258,7 +274,7 @@ export class MapScene {
           const days = rail_leg_days(this.here, t.to);
           const isToday = t === today;
           ctx.fillStyle = isToday ? COLORS.cream : 'rgba(244, 230, 200, 0.5)';
-          const label = `${CITIES[t.to].name}, ${days} ${days === 1 ? 'day' : 'days'}${isToday ? ' (today)' : ''}`;
+          const label = `${LOCATIONS[t.to].name}, ${days} ${days === 1 ? 'day' : 'days'}${isToday ? ' (today)' : ''}`;
           ctx.fillText(label, cx, y + 304 + k * 28);
         });
         if (city.yard.fromMap === false) {
@@ -270,7 +286,7 @@ export class MapScene {
       this.menu.draw(ctx, this.t);
     } else if (this.mode === 'won') {
       heading(ctx, 'Los Angeles', cx, y + 50);
-      wrap(ctx, CITIES.los_angeles.blurb, cx, y + 110, w - 50, 26, 19);
+      wrap(ctx, LOCATIONS.los_angeles.blurb, cx, y + 110, w - 50, 26, 19);
       ctx.fillStyle = COLORS.accent;
       ctx.font = `24px ${FONTS.body}`;
       ctx.fillText('You made it.', cx, y + 220);
