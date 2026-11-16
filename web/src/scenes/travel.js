@@ -2,6 +2,7 @@
 // while the country scrolls past, days and nights go by, and a status panel
 // keeps the date, weather and miles. Hold confirm to hurry the trip along.
 
+import { music_follow_trail } from '../core/music.js';
 import { formatDate } from '../core/calendar.js';
 import { Menu } from '../core/menu.js';
 import { drawPrompts } from '../core/prompts.js';
@@ -95,8 +96,9 @@ export class TravelScene {
     this.arrived = false;
 
     // Aboard (journey.riding was set in the yard): a Continue from here
-    // picks the ride back up.
+    // picks the ride back up. The music is still the city you left's.
     saveJourney(journey);
+    music_follow_trail(journey.trail);
   }
 
   get progress() {

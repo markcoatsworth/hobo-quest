@@ -5,6 +5,8 @@ import { hasSave, loadJourney, newJourney } from '../core/save.js';
 import { MapScene } from './map.js';
 import { TravelScene } from './travel.js';
 import { PlaceholderScene } from './placeholder.js';
+import { CutsceneScene } from './cutscene.js';
+import { CUTSCENES } from '../cutscenes/index.js';
 
 export class TitleScene {
   constructor(game, { select } = {}) {
@@ -43,7 +45,11 @@ export class TitleScene {
 
     switch (this.menu.update(dt, input, pointer)) {
       case 'new':
-        this.game.setScene(new MapScene(this.game, newJourney()));
+        this.game.setScene(
+          new CutsceneScene(this.game, CUTSCENES.opening, {
+            next: () => new MapScene(this.game, newJourney()),
+          }),
+        );
         break;
       case 'continue': {
         const journey = loadJourney();
