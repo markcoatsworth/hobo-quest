@@ -17,18 +17,26 @@
 //   at: [x, y],          position on the source rail map (source-image pixels)
 //   blurb,               one or two lines shown on the map
 //
+//   home?,               a second place to explore, in the same format as
+//                        `town`, offered first on the map (New York: the
+//                        family home up the Hudson)
+//
 //   town: {
+//     name?,             heading while you're here (default: the city's name)
+//     mapLabel?,         its option on the map (default: "Explore <name>")
 //     width,             length of the main street in px (the screen is 1280)
 //     start,             where you walk in
-//     sky,               'day' | 'dusk' | 'night' | 'haze' | 'desert'
+//     sky,               'day' | 'dusk' | 'night' | 'haze' | 'desert' | 'overcast'
+//     ground?,           'street' (default) | 'dirt'
 //     far: [...],        background silhouettes: { shape: 'block' | 'tower' |
 //                        'spire' | 'dome' | 'stack' | 'mountain' | 'tank', x, w, h }
 //     buildings: [...],  street frontage, left to right:
 //                        { x, w, h, wall, roof?: 'flat' | 'gable' | 'false-front',
-//                          sign?, place?: <place id> }
+//                          sign?, place?: <place id>, windows?: false (none),
+//                          shop?: false (no shop front on a place) }
 //     places: { id: { name, kind, blurb, stock?, game? } }
 //                        kind: 'store' | 'diner' | 'mission' | 'lodging' |
-//                        'landmark' | 'game'. stock: [[item, price]]; game: the
+//                        'landmark' | 'game' | 'home'. stock: [[item, price]]; game: the
 //                        mini-game it will host.
 //     npcs: [...],       { id, name, x, look: { coat, pants, hat, skin }, lines: [...] }
 //     lamps: [x, ...],   street lamps
@@ -40,6 +48,8 @@
 //   },
 //
 //   yard: {              the rail yard you leave from (omit where no freights leave)
+//     fromMap?,          false: the map doesn't offer the yard; you get there
+//                        by the yard sign in town
 //     player,            your starting height (y) at the west fence
 //     tracks: [...],     sidings, west to east:
 //                        { x, cars: 'BB.TBB' }   parked: one letter per car

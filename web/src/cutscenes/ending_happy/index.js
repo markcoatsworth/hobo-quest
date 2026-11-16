@@ -12,8 +12,9 @@ export default {
     {
       duration: 5,
       caption: 'Placeholder: the happy ending goes here.',
-      draw(ctx, t, k) {
+      draw(ctx, t) {
         // Sun coming up over the groves.
+        const k = Math.min(1, t / 5);
         ctx.fillStyle = '#f0c890';
         ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = '#f8e070';

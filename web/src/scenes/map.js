@@ -5,6 +5,7 @@
 
 import { Menu } from '../core/menu.js';
 import { drawPrompts } from '../core/prompts.js';
+import { music_follow_trail } from '../core/music.js';
 import { clearJourney, GOAL_CITY, saveJourney } from '../core/save.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
 import { formatDate } from '../core/calendar.js';
@@ -72,6 +73,7 @@ export class MapScene {
   }
 
   enter() {
+    music_follow_trail(this.journey.trail);
     if (this.here === GOAL_CITY) {
       this.mode = 'won';
       clearJourney();
@@ -86,12 +88,15 @@ export class MapScene {
     }
     this.mode = 'here';
     saveJourney(this.journey);
+    const city = CITIES[this.here];
+    const items = [];
+    if (city.home) items.push({ id: 'home', label: city.home.mapLabel ?? `Explore ${city.home.name}` });
+    items.push({ id: 'explore', label: city.town.mapLabel ?? `Explore ${city.name}` });
+    // Some yards can only be reached through town.
+    if (city.yard?.fromMap !== false) items.push({ id: 'hop', label: 'Sneak into the Yard', disabled: this.trains.length === 0 });
+    items.push({ id: 'title', label: 'Quit to Title' });
     this.menu = new Menu(
-      [
-        { id: 'explore', label: `Explore ${CITIES[this.here].name}` },
-        { id: 'hop', label: 'Sneak into the Yard', disabled: this.trains.length === 0 },
-        { id: 'title', label: 'Quit to Title' },
-      ],
+      items,
       { x: PANEL.x + PANEL.w / 2, y: 520, rowH: 50, width: 290, fontSize: 21 },
     );
   }
@@ -106,6 +111,8 @@ export class MapScene {
     if (choice === 'title') {
       // Progress is already saved at every stop.
       this.game.setScene(new TitleScene(this.game));
+    } else if (choice === 'home') {
+      this.game.setScene(new TownScene(this.game, this.journey, this.here, 'home'));
     } else if (choice === 'explore') {
       this.game.setScene(new TownScene(this.game, this.journey, this.here));
     } else if (choice === 'hop') {
@@ -254,6 +261,11 @@ export class MapScene {
           const label = `${CITIES[t.to].name}, ${days} ${days === 1 ? 'day' : 'days'}${isToday ? ' (today)' : ''}`;
           ctx.fillText(label, cx, y + 304 + k * 28);
         });
+        if (city.yard.fromMap === false) {
+          ctx.fillStyle = 'rgba(244, 230, 200, 0.5)';
+          ctx.font = `16px ${FONTS.body}`;
+          ctx.fillText('The yard is through the city.', cx, y + 314 + this.trains.length * 28);
+        }
       }
       this.menu.draw(ctx, this.t);
     } else if (this.mode === 'won') {

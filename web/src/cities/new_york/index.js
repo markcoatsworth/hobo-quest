@@ -1,4 +1,8 @@
-// New York: the Bowery at dusk, under the Third Avenue El.
+// New York: the family home up the Hudson (home.js), and the city itself:
+// the Bowery at dusk, under the Third Avenue El. The rail yard is only
+// reachable through the city.
+
+import home from './home.js';
 
 export default {
   id: 'new_york',
@@ -6,7 +10,10 @@ export default {
   at: [995, 322],
   blurb: 'Shantytowns in the parks and breadlines around the block. Time to head west.',
 
+  home,
+
   town: {
+    mapLabel: 'Head into the City',
     width: 2600,
     start: 160,
     sky: 'dusk',
@@ -142,6 +149,7 @@ export default {
   },
 
   yard: {
+    fromMap: false, // only through the city, by the sign at the end of the street
     player: 300,
     tracks: [
       { x: 190, cars: 'BB.TBB' },

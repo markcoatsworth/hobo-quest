@@ -22,6 +22,7 @@ const SKIES = {
   dusk: { top: '#2e2a4e', bottom: '#e08a5a', far: '#3e3448', lit: true },
   night: { top: '#0e1228', bottom: '#2a2e4a', far: '#1e2034', lit: true },
   haze: { top: '#9a948a', bottom: '#d8c8a0', far: '#6e6660', lit: false },
+  overcast: { top: '#8d98a2', bottom: '#d9d7cb', far: '#7b7e74', lit: false },
   desert: { top: '#7aa8d8', bottom: '#f2dcb0', far: '#b88a64', lit: false },
 };
 
@@ -32,14 +33,16 @@ const KIND_LABELS = {
   lodging: 'A bed for the night',
   landmark: 'Landmark',
   game: 'Mini-game',
+  home: 'Home',
 };
 
 export class TownScene {
-  constructor(game, journey, cityId) {
+  /** area: 'town', or 'home' for a city's second place (see src/cities/index.js). */
+  constructor(game, journey, cityId, area = 'town') {
     this.game = game;
     this.journey = journey;
     this.city = CITIES[cityId];
-    this.town = this.city.town;
+    this.town = this.city[area];
     this.sky = SKIES[this.town.sky] ?? SKIES.day;
     this.player = { x: this.town.start, facing: 1, step: 0 };
     this.camX = 0;
@@ -145,15 +148,28 @@ export class TownScene {
     ctx.restore();
     town.draw?.far?.(ctx, view);
 
-    // Street and sidewalk.
-    ctx.fillStyle = '#5a524a';
-    ctx.fillRect(0, BASE, W, 52);
-    ctx.fillStyle = '#7a7268';
-    for (let x = -(this.camX % 60); x < W; x += 60) ctx.fillRect(x, BASE, 2, 52);
-    ctx.fillStyle = '#8a8278';
-    ctx.fillRect(0, BASE + 50, W, 6); // curb
-    ctx.fillStyle = '#3a3532';
-    ctx.fillRect(0, BASE + 56, W, H - BASE - 56);
+    if (town.ground === 'dirt') {
+      // A dirt lane, ruts, and a grass verge.
+      ctx.fillStyle = '#7a6c54';
+      ctx.fillRect(0, BASE, W, H - BASE);
+      ctx.fillStyle = 'rgba(70, 60, 44, 0.45)';
+      ctx.fillRect(0, BASE + 30, W, 3);
+      ctx.fillRect(0, BASE + 60, W, 3);
+      ctx.fillStyle = '#5f6444';
+      ctx.fillRect(0, BASE + 90, W, H - BASE - 90);
+      ctx.fillStyle = '#6e7350';
+      for (let x = -(this.camX % 23); x < W; x += 23) ctx.fillRect(x, BASE + 86, 3, 8);
+    } else {
+      // Street and sidewalk.
+      ctx.fillStyle = '#5a524a';
+      ctx.fillRect(0, BASE, W, 52);
+      ctx.fillStyle = '#7a7268';
+      for (let x = -(this.camX % 60); x < W; x += 60) ctx.fillRect(x, BASE, 2, 52);
+      ctx.fillStyle = '#8a8278';
+      ctx.fillRect(0, BASE + 50, W, 6); // curb
+      ctx.fillStyle = '#3a3532';
+      ctx.fillRect(0, BASE + 56, W, H - BASE - 56);
+    }
 
     // Buildings.
     ctx.save();
@@ -187,7 +203,7 @@ export class TownScene {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = COLORS.cream;
     ctx.font = `30px ${FONTS.title}`;
-    ctx.fillText(this.city.name, 24, 33);
+    ctx.fillText(this.town.name ?? this.city.name, 24, 33);
     ctx.textAlign = 'right';
     ctx.font = `20px ${FONTS.body}`;
     ctx.fillStyle = 'rgba(244, 230, 200, 0.8)';
@@ -275,6 +291,7 @@ export class TownScene {
       lodging: 'Taking a bed comes later.',
       game: place.game ? `${place.game}: a mini-game for later.` : 'A mini-game for later.',
       landmark: '',
+      home: '',
     }[place.kind];
     if (soon) {
       ctx.textAlign = 'center';
@@ -287,7 +304,8 @@ export class TownScene {
 
 // --------------------------------------------------------------- drawing
 
-const HOBO = { coat: '#6a5642', pants: '#3a3a44', hat: 'fedora', skin: '#d8b08a', bindle: true };
+// The player: the teenager from the opening cutscene, same cap and coat.
+const HOBO = { coat: '#5d5348', pants: '#3d3833', hat: 'cap', skin: '#c8956d', bindle: true };
 
 function drawFarShape(ctx, { shape, x, w, h }) {
   const y = BASE;
@@ -364,7 +382,7 @@ function drawBuilding(ctx, b, lit, focused) {
   }
 
   // Windows on a grid, the ground floor left for the door and shop front.
-  const cols = Math.max(1, Math.floor((b.w - 30) / 48));
+  const cols = b.windows === false ? 0 : Math.max(1, Math.floor((b.w - 30) / 48));
   const gap = (b.w - cols * 26) / (cols + 1);
   let row = 0;
   for (let y = top + 24; y < BASE - 110; y += 56, row++) {
@@ -381,7 +399,7 @@ function drawBuilding(ctx, b, lit, focused) {
   // Ground floor: door, and a shop window if it's a place.
   ctx.fillStyle = shade(b.wall, -0.5);
   ctx.fillRect(door - 16, BASE - 64, 32, 64);
-  if (b.place) {
+  if (b.place && b.shop !== false) {
     ctx.fillStyle = lit ? '#d8b070' : shade(b.wall, 0.25);
     ctx.fillRect(b.x + 14, BASE - 60, door - 30 - b.x - 14, 38);
     ctx.fillRect(door + 30, BASE - 60, b.x + b.w - 14 - door - 30, 38);
