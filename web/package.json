@@ -8,7 +8,8 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
-    "map": "node scripts/build-map.mjs"
+    "map": "node scripts/build-map.mjs",
+    "check": "node scripts/check-content.mjs"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

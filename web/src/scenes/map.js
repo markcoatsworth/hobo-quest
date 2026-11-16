@@ -1,15 +1,18 @@
-// The journey map: choose a line in New York, then between yards watch the
-// freight carry you to the next stop. Reaching Los Angeles ends the game.
+// The journey map: the rail network, where you are and the trail you've
+// ridden. From here you explore the town or head for its yard; which way you
+// go next is up to the freight you catch there. Reaching Los Angeles ends
+// the game.
 
 import { Menu } from '../core/menu.js';
 import { drawPrompts } from '../core/prompts.js';
-import { clearJourney, saveJourney } from '../core/save.js';
+import { clearJourney, GOAL_CITY, saveJourney } from '../core/save.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
 import { formatDate } from '../core/calendar.js';
-import { CITIES, ROUTES, legDays, legPath, routePath } from '../data/routes.js';
+import { CITIES } from '../cities/index.js';
+import { rail_leg_days, rail_leg_path, rail_lines } from '../systems/rail.js';
 import { panel, TitleScene } from './title.js';
 import { TownScene } from './town.js';
-import { YardScene } from './yard.js';
+import { todaysTrain, YardScene } from './yard.js';
 
 // Source-image pixels -> screen. Crops the source to the lower 48.
 const SRC_X = 20;
@@ -25,18 +28,18 @@ const ROUTE_INK = '#9e2b25';
 
 // Label placement per city: [dx, dy, align].
 const LABELS = {
-  nyc: [10, -6, 'left'],
-  phl: [10, 4, 'left'],
-  dc: [-10, 8, 'right'],
-  cle: [6, 14, 'left'],
-  chi: [-8, 12, 'right'],
-  kc: [0, -12, 'center'],
-  nas: [10, 4, 'left'],
-  clk: [10, 10, 'left'],
-  dal: [0, 20, 'center'],
-  elp: [0, -14, 'center'],
-  phx: [0, 20, 'center'],
-  la: [8, 18, 'left'],
+  new_york: [10, -6, 'left'],
+  philadelphia: [10, 4, 'left'],
+  washington_dc: [-10, 8, 'right'],
+  cleveland: [6, 14, 'left'],
+  chicago: [-8, 12, 'right'],
+  kansas_city: [0, -12, 'center'],
+  nashville: [10, 4, 'left'],
+  clarksdale: [10, 10, 'left'],
+  dallas: [0, 20, 'center'],
+  el_paso: [0, -14, 'center'],
+  phoenix: [0, 20, 'center'],
+  los_angeles: [8, 18, 'left'],
 };
 
 const images = {};
@@ -56,34 +59,20 @@ export class MapScene {
     this.land = image('land');
     this.rails = image('rails');
 
-    if (!journey.route) this.enterChoose();
-    else this.enterStop();
-  }
-
-  get stops() {
-    return ROUTES[this.journey.route].stops;
+    this.enter();
   }
 
   get here() {
-    return this.journey.route ? this.stops[this.journey.stop] : 'nyc';
+    return this.journey.at;
   }
 
-  enterChoose() {
-    this.mode = 'choose';
-    this.menu = new Menu(
-      [
-        { id: 'north', label: ROUTES.north.name },
-        { id: 'south', label: ROUTES.south.name },
-        { id: 'explore', label: 'Explore New York' },
-        { id: 'title', label: 'Quit to Title' },
-      ],
-      { x: PANEL.x + PANEL.w / 2, y: 452, rowH: 48, width: 280, fontSize: 24 },
-    );
+  /** The departing freights in this city's yard, in the yard's order. */
+  get trains() {
+    return CITIES[this.here].yard?.trains ?? [];
   }
 
-  enterStop() {
-    const atEnd = this.journey.stop === this.stops.length - 1;
-    if (atEnd) {
+  enter() {
+    if (this.here === GOAL_CITY) {
       this.mode = 'won';
       clearJourney();
       this.menu = new Menu(
@@ -95,12 +84,12 @@ export class MapScene {
       );
       return;
     }
-    this.mode = 'stop';
+    this.mode = 'here';
     saveJourney(this.journey);
     this.menu = new Menu(
       [
         { id: 'explore', label: `Explore ${CITIES[this.here].name}` },
-        { id: 'hop', label: 'Sneak into the Yard' },
+        { id: 'hop', label: 'Sneak into the Yard', disabled: this.trains.length === 0 },
         { id: 'title', label: 'Quit to Title' },
       ],
       { x: PANEL.x + PANEL.w / 2, y: 520, rowH: 50, width: 290, fontSize: 21 },
@@ -117,9 +106,6 @@ export class MapScene {
     if (choice === 'title') {
       // Progress is already saved at every stop.
       this.game.setScene(new TitleScene(this.game));
-    } else if (choice === 'north' || choice === 'south') {
-      this.journey.route = choice;
-      this.enterStop();
     } else if (choice === 'explore') {
       this.game.setScene(new TownScene(this.game, this.journey, this.here));
     } else if (choice === 'hop') {
@@ -180,29 +166,18 @@ export class MapScene {
       ctx.restore();
     }
 
-    // Routes: when choosing, preview the highlighted one; otherwise the chosen one.
-    const showing =
-      this.mode === 'choose'
-        ? ['north', 'south'].includes(this.menu.selected.id)
-          ? this.menu.selected.id
-          : null
-        : this.journey.route;
-    if (this.mode === 'choose') {
-      for (const id of ['north', 'south']) if (id !== showing) this.strokeRoute(ctx, routePath(id), 0.25, true);
+    // The whole network faintly, the lines out of here stronger, the trail
+    // ridden so far solid.
+    const out = this.trains.map((t) => t.to);
+    for (const line of rail_lines()) {
+      const fromHere = line.from === this.here && out.includes(line.to);
+      this.strokeRoute(ctx, rail_leg_path(line.from, line.to), fromHere ? 0.85 : 0.25, true);
     }
-    if (showing) this.strokeRoute(ctx, routePath(showing), this.mode === 'choose' ? 0.9 : 0.55, true);
+    const trail = this.journey.trail;
+    for (let i = 0; i < trail.length - 1; i++) this.strokeRoute(ctx, rail_leg_path(trail[i], trail[i + 1]), 1, false);
 
-    // Ridden so far: solid.
-    if (this.journey.route) {
-      const stops = this.stops;
-      for (let i = 0; i < this.journey.stop; i++) this.strokeRoute(ctx, legPath(stops[i], stops[i + 1]), 1, false);
-    }
-
-    // Cities on the route(s) being shown.
-    const cities = new Set(showing ? ROUTES[showing].stops : [...ROUTES.north.stops, ...ROUTES.south.stops]);
-    if (this.mode === 'choose') for (const id of [...ROUTES.north.stops, ...ROUTES.south.stops]) cities.add(id);
-    for (const id of cities) this.drawCity(ctx, id, showing && ROUTES[showing].stops.includes(id));
-
+    // Every city; the ones reached, and the ones a freight from here goes to, in full ink.
+    for (const id of Object.keys(CITIES)) this.drawCity(ctx, id, trail.includes(id) || out.includes(id));
   }
 
   strokeRoute(ctx, pts, alpha, dashed) {
@@ -260,36 +235,30 @@ export class MapScene {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    if (this.mode === 'choose') {
-      heading(ctx, 'New York', cx, y + 50);
-      wrap(ctx, CITIES.nyc.blurb, cx, y + 110, w - 50, 26, 19);
-      ctx.fillStyle = COLORS.accent;
-      ctx.font = `22px ${FONTS.body}`;
-      ctx.fillText('Which way west?', cx, y + 240);
-      const sel = this.menu.selected.id;
-      if (sel === 'north' || sel === 'south') {
-        const r = ROUTES[sel];
-        wrap(ctx, r.pitch, cx, y + 280, w - 50, 24, 17, 'rgba(244, 230, 200, 0.8)');
-      }
-      this.menu.draw(ctx, this.t);
-    } else if (this.mode === 'stop') {
-      const stops = this.stops;
-      const i = this.journey.stop;
-      heading(ctx, CITIES[stops[i]].name, cx, y + 50);
-      wrap(ctx, CITIES[stops[i]].blurb, cx, y + 110, w - 50, 26, 19);
-      const next = stops[i + 1];
+    if (this.mode === 'here') {
+      const city = CITIES[this.here];
+      heading(ctx, city.name, cx, y + 50);
+      wrap(ctx, city.blurb, cx, y + 110, w - 50, 26, 19);
       ctx.fillStyle = COLORS.accent;
       ctx.font = `20px ${FONTS.body}`;
-      ctx.fillText(`Next stop: ${CITIES[next].name}`, cx, y + 300);
-      ctx.fillStyle = 'rgba(244, 230, 200, 0.7)';
-      ctx.font = `18px ${FONTS.body}`;
-      const days = legDays(stops[i], next);
-      ctx.fillText(`About ${days} ${days === 1 ? 'day' : 'days'} by freight`, cx, y + 330);
-      ctx.fillText(`Stop ${i + 1} of ${stops.length - 1} on the ${ROUTES[this.journey.route].name}`, cx, y + 360);
+      if (this.trains.length === 0) {
+        ctx.fillText('No freights leave from here.', cx, y + 300);
+      } else {
+        ctx.fillText('Freights out of the yard', cx, y + 270);
+        const today = todaysTrain(city.yard, this.journey.day);
+        ctx.font = `18px ${FONTS.body}`;
+        this.trains.forEach((t, k) => {
+          const days = rail_leg_days(this.here, t.to);
+          const isToday = t === today;
+          ctx.fillStyle = isToday ? COLORS.cream : 'rgba(244, 230, 200, 0.5)';
+          const label = `${CITIES[t.to].name}, ${days} ${days === 1 ? 'day' : 'days'}${isToday ? ' (today)' : ''}`;
+          ctx.fillText(label, cx, y + 304 + k * 28);
+        });
+      }
       this.menu.draw(ctx, this.t);
     } else if (this.mode === 'won') {
       heading(ctx, 'Los Angeles', cx, y + 50);
-      wrap(ctx, CITIES.la.blurb, cx, y + 110, w - 50, 26, 19);
+      wrap(ctx, CITIES.los_angeles.blurb, cx, y + 110, w - 50, 26, 19);
       ctx.fillStyle = COLORS.accent;
       ctx.font = `24px ${FONTS.body}`;
       ctx.fillText('You made it.', cx, y + 220);
@@ -298,7 +267,7 @@ export class MapScene {
       const j = this.journey;
       const lines = [
         `${j.day} days on the road`,
-        `via the ${ROUTES[j.route].name}`,
+        `${j.trail.length - 1} ${j.trail.length === 2 ? 'freight' : 'freights'} ridden`,
         `${j.arrests} ${j.arrests === 1 ? 'arrest' : 'arrests'}`,
         `${j.missed} missed ${j.missed === 1 ? 'train' : 'trains'}`,
       ];

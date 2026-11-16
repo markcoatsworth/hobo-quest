@@ -8,7 +8,8 @@ import { drawPrompts } from '../core/prompts.js';
 import { hashString, seeded } from '../core/rng.js';
 import { saveJourney } from '../core/save.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
-import { CITIES, ROUTES, legDays, legMiles, milesTo, sceneryAt } from '../data/routes.js';
+import { CITIES } from '../cities/index.js';
+import { rail_leg_days, rail_leg_miles, rail_scenery_at } from '../systems/rail.js';
 import { MapScene } from './map.js';
 import { panel, TitleScene } from './title.js';
 
@@ -67,13 +68,19 @@ export class TravelScene {
   constructor(game, journey) {
     this.game = game;
     this.journey = journey;
-    const stops = ROUTES[journey.route].stops;
-    this.from = stops[journey.stop];
-    this.to = stops[journey.stop + 1];
-    this.days = legDays(this.from, this.to);
-    this.miles = legMiles(this.from, this.to);
-    this.milesBefore = milesTo(journey.route, journey.stop);
-    this.routeMiles = milesTo(journey.route, stops.length - 1);
+    this.from = journey.riding.from;
+    this.to = journey.riding.to;
+    this.days = rail_leg_days(this.from, this.to);
+    this.miles = rail_leg_miles(this.from, this.to);
+    // The strip along the bottom: every city on the trail so far, then this
+    // leg's destination, spaced by miles.
+    this.stops = [...journey.trail, this.to];
+    this.stopMiles = [0];
+    for (let i = 1; i < this.stops.length; i++) {
+      this.stopMiles.push(this.stopMiles[i - 1] + rail_leg_miles(this.stops[i - 1], this.stops[i]));
+    }
+    this.milesBefore = this.stopMiles[this.stops.length - 2];
+    this.routeMiles = this.stopMiles[this.stops.length - 1];
     this.startDay = journey.day;
     this.seed = hashString(`${this.from}-${this.to}`);
 
@@ -87,8 +94,8 @@ export class TravelScene {
     this.paused = null;
     this.arrived = false;
 
-    // Aboard: a Continue from here picks the ride back up.
-    journey.riding = true;
+    // Aboard (journey.riding was set in the yard): a Continue from here
+    // picks the ride back up.
     saveJourney(journey);
   }
 
@@ -154,8 +161,9 @@ export class TravelScene {
       this.arrived = true;
       const j = this.journey;
       j.day = this.startDay + this.days;
-      j.stop += 1;
-      j.riding = false;
+      j.at = this.to;
+      j.trail.push(this.to);
+      j.riding = null;
       this.game.setScene(new MapScene(this.game, j));
     }
   }
@@ -164,7 +172,7 @@ export class TravelScene {
 
   /** Region whose stretch of the leg is at the train when the ground has scrolled s px. */
   regionAtS(s) {
-    return sceneryAt(this.from, this.to, Math.max(0, Math.min(1, s / this.length)));
+    return rail_scenery_at(this.from, this.to, Math.max(0, Math.min(1, s / this.length)));
   }
 
   /**
@@ -191,7 +199,7 @@ export class TravelScene {
   }
 
   weather(day) {
-    const r = seeded(hashString(`${this.journey.route}:${day}`))();
+    const r = seeded(hashString(`${this.from}-${this.to}:${day}`))();
     const dry = this.regionAtS(this.s) === 'desert';
     if (dry) return r < 0.85 ? 'Hot and dry' : 'Cloudy';
     return r < 0.55 ? 'Clear' : r < 0.82 ? 'Cloudy' : 'Rain';
@@ -591,8 +599,9 @@ export class TravelScene {
     ctx.fillStyle = 'rgba(244, 230, 200, 0.35)';
     ctx.fillRect(0, VIEW_H, W, 2);
 
-    // Route strip: every stop on the line, the train between two of them.
-    const stops = ROUTES[this.journey.route].stops;
+    // Trail strip: every city reached so far, the train between the last
+    // two.
+    const stops = this.stops;
     const x0 = 90;
     const x1 = W - 90;
     const sy = VIEW_H + 50;
@@ -612,19 +621,19 @@ export class TravelScene {
     ctx.stroke();
     ctx.font = `14px ${FONTS.body}`;
     ctx.textAlign = 'center';
-    const stopX = stops.map((_, i) => at(milesTo(this.journey.route, i)));
+    const stopX = stops.map((_, i) => at(this.stopMiles[i]));
     stops.forEach((id, i) => {
-      ctx.fillStyle = i <= this.journey.stop ? '#c0453a' : 'rgba(244, 230, 200, 0.6)';
+      ctx.fillStyle = i < stops.length - 1 ? '#c0453a' : 'rgba(244, 230, 200, 0.6)';
       ctx.beginPath();
       ctx.arc(stopX[i], sy, 5, 0, Math.PI * 2);
       ctx.fill();
     });
-    // Label the next stop, the last one, and the ends, in that order of
-    // importance, skipping any that would overlap (the eastern stops on the
-    // southern line are close together). Alternate above and below.
+    // Label the next stop, the one just left, and the start, in that order
+    // of importance, skipping any that would overlap (eastern cities are
+    // close together). Alternate above and below.
     const placed = [];
     const n = stops.length;
-    for (const i of [this.journey.stop + 1, this.journey.stop, 0, n - 1]) {
+    for (const i of [n - 1, n - 2, 0]) {
       if (placed.some((p) => p.i === i)) continue;
       const name = CITIES[stops[i]].name;
       const half = ctx.measureText(name).width / 2 + 8;
@@ -649,7 +658,7 @@ export class TravelScene {
     ];
     const rows2 = [
       ['Miles to go', `${Math.max(0, Math.round(this.miles * (1 - this.progress)))}`],
-      ['Miles traveled', `${Math.round(travelled)} of ${total}`],
+      ['Miles traveled', `${Math.round(travelled)}`],
       ['Arrests', `${this.journey.arrests}`],
     ];
     ctx.textAlign = 'left';

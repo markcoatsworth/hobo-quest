@@ -3,6 +3,10 @@
 //   src/cities/<id>/index.js   the city's definition (below)
 //   public/cities/<id>/        art, music etc. for it, when there is some
 //
+// <id> is the city's name in snake_case (new_york, el_paso, washington_dc),
+// the same for its folder, its `id` field and the rail lines in
+// src/rail/network.json.
+//
 // Nothing about a city is generated: its town, its people and its rail yard
 // are all written out in its module, so each one can be shaped by hand.
 //
@@ -35,8 +39,7 @@
 //                        view = { camX, W, H, base, t }
 //   },
 //
-//   yard: {              the rail yard you leave from (omit at the last stop)
-//     departs,           seconds until the freight pulls out
+//   yard: {              the rail yard you leave from (omit where no freights leave)
 //     player,            your starting height (y) at the west fence
 //     tracks: [...],     sidings, west to east:
 //                        { x, cars: 'BB.TBB' }   parked: one letter per car
@@ -46,23 +49,28 @@
 //                        at = where its lead end starts (y)
 //                        Car letters: B boxcar, b brown boxcar, R reefer,
 //                        T tank, G gondola, E switch engine.
-//     train: { cars?, open },  the departing freight: letters from the engine
-//                        back, and which car (index) has its door open
+//     trains: [...],     the departing freights: { to, cars?, open, departs }
+//                        to: the city it's bound for, which must be joined to
+//                        this one by a line in src/rail/network.json (checked
+//                        by `npm run check`); cars: letters from the engine
+//                        back; open: which car (index) has its door open;
+//                        departs: seconds until it pulls out. For now the yard
+//                        runs one a day, taking turns in this order.
 //     bulls: [...],      { x, y, dir }: each walks the aisle at x
 //   },
 // }
 
-import nyc from './nyc/index.js';
-import cle from './cle/index.js';
-import chi from './chi/index.js';
-import kc from './kc/index.js';
-import phl from './phl/index.js';
-import dc from './dc/index.js';
-import nas from './nas/index.js';
-import clk from './clk/index.js';
-import dal from './dal/index.js';
-import elp from './elp/index.js';
-import phx from './phx/index.js';
-import la from './la/index.js';
+import new_york from './new_york/index.js';
+import cleveland from './cleveland/index.js';
+import chicago from './chicago/index.js';
+import kansas_city from './kansas_city/index.js';
+import philadelphia from './philadelphia/index.js';
+import washington_dc from './washington_dc/index.js';
+import nashville from './nashville/index.js';
+import clarksdale from './clarksdale/index.js';
+import dallas from './dallas/index.js';
+import el_paso from './el_paso/index.js';
+import phoenix from './phoenix/index.js';
+import los_angeles from './los_angeles/index.js';
 
-export const CITIES = Object.fromEntries([nyc, cle, chi, kc, phl, dc, nas, clk, dal, elp, phx, la].map((c) => [c.id, c]));
+export const CITIES = Object.fromEntries([new_york, cleveland, chicago, kansas_city, philadelphia, washington_dc, nashville, clarksdale, dallas, el_paso, phoenix, los_angeles].map((c) => [c.id, c]));

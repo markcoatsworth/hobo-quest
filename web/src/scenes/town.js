@@ -5,7 +5,7 @@
 import { formatDate } from '../core/calendar.js';
 import { drawPrompts } from '../core/prompts.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
-import { CITIES, ROUTES } from '../data/routes.js';
+import { CITIES } from '../cities/index.js';
 import { MapScene } from './map.js';
 import { panel } from './title.js';
 import { YardScene } from './yard.js';
@@ -50,12 +50,9 @@ export class TownScene {
     this.focus = null;
   }
 
-  /** Can you head for the yard from here? Only at the stop you're at, with a route chosen. */
+  /** Can you head for the yard from here? Only in the city you're in, if freights leave it. */
   get yardOpen() {
-    const j = this.journey;
-    if (!j.route) return false;
-    const stops = ROUTES[j.route].stops;
-    return stops[j.stop] === this.city.id && j.stop < stops.length - 1;
+    return this.journey.at === this.city.id && (this.city.yard?.trains?.length ?? 0) > 0;
   }
 
   // ---------------------------------------------------------------- update
@@ -123,7 +120,7 @@ export class TownScene {
     else if (f.type === 'place') this.place = f.id;
     else if (f.type === 'yard') {
       if (this.yardOpen) this.game.setScene(new YardScene(this.game, this.journey));
-      else this.notice = { text: 'Pick your line on the map before you go hopping freights.', t: 3 };
+      else this.notice = { text: 'No freights leave from here.', t: 3 };
     }
   }
 

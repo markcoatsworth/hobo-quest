@@ -8,7 +8,7 @@ import { seeded } from '../core/rng.js';
 import { saveJourney } from '../core/save.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
 import { Menu } from '../core/menu.js';
-import { CITIES, ROUTES } from '../data/routes.js';
+import { CITIES } from '../cities/index.js';
 import { MapScene } from './map.js';
 import { TravelScene } from './travel.js';
 import { panel, TitleScene } from './title.js';
@@ -55,14 +55,22 @@ const FIRST_SLOT_Y = TOP - 20;
 const CUT_PAUSE = 2.5; // seconds a shunting cut waits off-screen before coming back
 const BULL_WAIT = 2; // seconds a bull stands at each end of his beat
 
+/**
+ * The freight leaving a yard on a given day. One at a time for now: where a
+ * yard lists several, each day brings the next in the list.
+ */
+export function todaysTrain(yard, day) {
+  return yard.trains[(day - 1) % yard.trains.length];
+}
+
 export class YardScene {
   constructor(game, journey) {
     this.game = game;
     this.journey = journey;
-    const stops = ROUTES[journey.route].stops;
-    this.from = stops[journey.stop];
-    this.to = stops[journey.stop + 1];
+    this.from = journey.at;
     this.layout = CITIES[this.from].yard;
+    this.trainDef = todaysTrain(this.layout, journey.day);
+    this.to = this.trainDef.to;
     this.t = 0;
     this.outcome = null; // 'boarded' | 'caught' | 'missed'
     this.paused = null; // Menu while paused
@@ -75,7 +83,7 @@ export class YardScene {
 
   /** Lay the yard out exactly as the city's module describes it. */
   build() {
-    const { tracks, train, bulls, departs, player } = this.layout;
+    const { tracks, bulls, player } = this.layout;
 
     this.trackXs = tracks.map((t) => t.x);
     this.parked = []; // static car rects
@@ -99,7 +107,7 @@ export class YardScene {
       }
     }
 
-    this.buildTrain(train, departs);
+    this.buildTrain(this.trainDef, this.trainDef.departs);
 
     this.bulls = bulls.map((b, i) => ({
       x: b.x,
@@ -394,7 +402,10 @@ export class YardScene {
     const j = this.journey;
     this.outcome = outcome;
     this.outcomeT = 0;
-    if (outcome === 'caught') {
+    if (outcome === 'boarded') {
+      j.riding = { from: this.from, to: this.to };
+      saveJourney(j);
+    } else if (outcome === 'caught') {
       j.day += 1;
       j.arrests += 1;
       this.game.input.rumble(400, 1, 1);

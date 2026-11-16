@@ -5,8 +5,8 @@
 //   node scripts/build-map.mjs
 //
 // Outputs public/map/land.png and public/map/rails.png, both at the source
-// image's size, so the city coordinates in src/data/routes.js (measured in
-// source-image pixels) line up with them.
+// image's size, so the city coordinates in src/cities/ and the track in
+// src/rail/network.json (measured in source-image pixels) line up with them.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { PNG } from 'pngjs';

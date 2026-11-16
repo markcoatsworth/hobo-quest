@@ -1,0 +1,69 @@
+{
+  "lines": [
+    {
+      "from": "new_york", "to": "cleveland", "days": 2, "miles": 588,
+      "via": [[992,296],[980,268],[955,262],[900,272],[872,300]],
+      "scenery": [[0,"river"],[0.45,"hills"],[0.85,"mill"]]
+    },
+    {
+      "from": "cleveland", "to": "chicago", "days": 1, "miles": 332,
+      "via": [[800,338],[760,340]],
+      "scenery": [[0,"mill"],[0.25,"prairie"],[0.82,"mill"]]
+    },
+    {
+      "from": "chicago", "to": "kansas_city", "days": 1, "miles": 434,
+      "via": [[690,352],[645,385]],
+      "scenery": [[0,"mill"],[0.15,"prairie"]]
+    },
+    {
+      "from": "kansas_city", "to": "los_angeles", "days": 5, "miles": 1506,
+      "via": [[565,455],[500,505],[428,545],[370,535],[320,510],[270,495],[205,487],[140,492]],
+      "scenery": [[0,"prairie"],[0.3,"desert"],[0.88,"groves"]]
+    },
+    {
+      "from": "kansas_city", "to": "dallas", "days": 2, "miles": 523,
+      "via": [[594,440],[589,480],[580,520],[566,555],[552,585]],
+      "scenery": [[0,"prairie"]]
+    },
+    {
+      "from": "new_york", "to": "philadelphia", "days": 1, "miles": 90,
+      "via": [[987,337]],
+      "scenery": [[0,"mill"],[0.3,"hills"],[0.8,"mill"]]
+    },
+    {
+      "from": "philadelphia", "to": "washington_dc", "days": 1, "miles": 127,
+      "via": [[962,368]],
+      "scenery": [[0,"mill"],[0.25,"hills"],[0.85,"mill"]]
+    },
+    {
+      "from": "washington_dc", "to": "nashville", "days": 2, "miles": 584,
+      "via": [[900,420],[850,448],[800,476]],
+      "scenery": [[0,"hills"],[0.2,"mountains"],[0.8,"hills"]]
+    },
+    {
+      "from": "nashville", "to": "clarksdale", "days": 1, "miles": 286,
+      "via": [[730,513],[697,527]],
+      "scenery": [[0,"hills"],[0.4,"cotton"]]
+    },
+    {
+      "from": "clarksdale", "to": "dallas", "days": 1, "miles": 395,
+      "via": [[640,570],[600,590]],
+      "scenery": [[0,"cotton"],[0.6,"prairie"]]
+    },
+    {
+      "from": "dallas", "to": "el_paso", "days": 2, "miles": 588,
+      "via": [[500,605],[440,614],[390,612]],
+      "scenery": [[0,"prairie"],[0.4,"desert"]]
+    },
+    {
+      "from": "el_paso", "to": "phoenix", "days": 1, "miles": 373,
+      "via": [[300,585],[258,562]],
+      "scenery": [[0,"desert"]]
+    },
+    {
+      "from": "phoenix", "to": "los_angeles", "days": 1, "miles": 323,
+      "via": [[170,530],[132,515]],
+      "scenery": [[0,"desert"],[0.6,"groves"]]
+    }
+  ]
+}
