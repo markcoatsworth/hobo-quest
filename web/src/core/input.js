@@ -61,8 +61,12 @@ export class Input {
     this.stick = { x: 0, y: 0 }; // analog left stick, deadzone applied
     this.state = Object.fromEntries(ACTIONS.map((a) => [a, { down: false, pressed: false, repeated: false, held: 0, repeatAt: 0 }]));
     // Which device the player last touched, for button prompts:
-    // 'keyboard' | 'gamepad' | 'mouse' (set by main.js).
+    // 'keyboard' | 'gamepad' | 'mouse' | 'touch' (the last two set outside).
     this.lastDevice = 'keyboard';
+    // On-screen controls on phones and tablets (src/touch/) feed in here as
+    // a virtual controller: { down: Set of actions held, stick: { x, y } }.
+    // Null everywhere else, which leaves input exactly as it was.
+    this.virtual = null;
     this.listeners = new Set();
 
     target.addEventListener('keydown', (e) => {
@@ -92,6 +96,11 @@ export class Input {
   /** Call once per frame, before the scene reads input. */
   update(dt) {
     const padDown = this.pollGamepads();
+    if (this.virtual) {
+      for (const action of this.virtual.down) padDown.add(action);
+      const v = this.virtual.stick;
+      if (Math.hypot(v.x, v.y) > Math.hypot(this.stick.x, this.stick.y)) this.stick = { x: v.x, y: v.y };
+    }
 
     for (const action of ACTIONS) {
       const s = this.state[action];

@@ -6,46 +6,59 @@ import { COLORS, FONTS, W, H } from './core/screen.js';
 import { TitleScene } from './scenes/title.js';
 import { CornerButtons, toggleMute } from './ui/corner.js';
 import { SettingsPanel } from './ui/settings.js';
+import { isTouchDevice } from './touch/detect.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-// Scale the fixed W×H world to the window, letterboxed.
+// Scale the fixed W×H world to the window, letterboxed. On a phone held
+// upright the touch layer turns the whole picture a quarter-turn (see
+// src/touch/screen.js): then the game fits the screen sideways, `screen`
+// gives the sideways size, and `turn` the rotation. Everywhere else the
+// screen is just the window and nothing turns.
 const view = { scale: 1, ox: 0, oy: 0 };
+const screenSize = () => game.touch?.screen.size() ?? { w: window.innerWidth, h: window.innerHeight };
 function resize() {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(window.innerWidth * dpr);
   canvas.height = Math.round(window.innerHeight * dpr);
-  view.scale = Math.min(canvas.width / W, canvas.height / H);
-  view.ox = (canvas.width - W * view.scale) / 2;
-  view.oy = (canvas.height - H * view.scale) / 2;
+  const { w, h } = screenSize();
+  view.scale = Math.min((w * dpr) / W, (h * dpr) / H);
+  view.ox = (w * dpr - W * view.scale) / 2;
+  view.oy = (h * dpr - H * view.scale) / 2;
 }
 window.addEventListener('resize', resize);
-resize();
 
 // Mouse, in world coordinates. Optional: everything works without it.
 const pointer = { x: -1, y: -1, moved: false, clicked: false };
 function toWorld(e) {
   const dpr = window.devicePixelRatio || 1;
-  pointer.x = (e.clientX * dpr - view.ox) / view.scale;
-  pointer.y = (e.clientY * dpr - view.oy) / view.scale;
+  const p = game.touch?.screen.fromClient(e.clientX, e.clientY) ?? { x: e.clientX, y: e.clientY };
+  pointer.x = (p.x * dpr - view.ox) / view.scale;
+  pointer.y = (p.y * dpr - view.oy) / view.scale;
 }
+// On a phone or tablet a finger counts as touch (src/touch/ handles that);
+// everywhere else, touchscreen laptops included, it's the mouse as ever.
+const pointerDevice = (e) => (e.pointerType === 'touch' && game.touch ? 'touch' : 'mouse');
 canvas.addEventListener('pointermove', (e) => {
   toWorld(e);
   pointer.moved = true;
-  game.input.lastDevice = 'mouse';
+  game.input.lastDevice = pointerDevice(e);
 });
 canvas.addEventListener('pointerdown', (e) => {
   toWorld(e);
   pointer.moved = true;
   pointer.clicked = true;
-  game.input.lastDevice = 'mouse';
+  game.input.lastDevice = pointerDevice(e);
 });
 
 const game = {
   input: new Input(),
   backdrop: new Backdrop(),
   scene: null,
+  // On phones and tablets only: the touch layer (src/touch/), with its
+  // on-screen controls and the turn-sideways screen. Null on desktop.
+  touch: null,
   // Shown over the scene, which waits while it's open (Settings from the
   // title or the corner gear). Has update() returning 'close', and draw().
   overlay: null,
@@ -58,6 +71,7 @@ const game = {
   },
 };
 game.corner = new CornerButtons(game);
+resize();
 
 // Dev builds only: a handle for poking at the game from the console/tests.
 if (import.meta.env.DEV) window.__game = game;
@@ -95,6 +109,8 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
 
+  // Touch devices: the on-screen controls feed the input first.
+  game.touch?.update(dt);
   game.input.update(dt);
   game.backdrop.update(dt);
   if (game.input.pressed('mute')) toggleMute(game);
@@ -110,7 +126,9 @@ function frame(now) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#0b0908';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
+  // A phone held upright draws the game turned sideways (src/touch/).
+  if (game.touch) game.touch.screen.turn(ctx);
+  ctx.transform(view.scale, 0, 0, view.scale, view.ox, view.oy);
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, W, H);
@@ -120,6 +138,7 @@ function frame(now) {
   game.corner.draw(ctx);
   drawToast(dt);
   ctx.restore();
+  game.touch?.draw(ctx);
 
   requestAnimationFrame(frame);
 }
@@ -129,7 +148,13 @@ function frame(now) {
 Promise.race([
   Promise.all([document.fonts.load(`112px ${FONTS.title}`), document.fonts.load(`34px ${FONTS.body}`)]),
   new Promise((r) => setTimeout(r, 2000)),
-]).finally(() => {
+]).finally(async () => {
+  // Phones and tablets load the touch layer; desktops never fetch it.
+  if (isTouchDevice()) {
+    const { setupTouch } = await import('./touch/index.js');
+    setupTouch(game, canvas);
+    resize();
+  }
   game.setScene(new TitleScene(game));
   requestAnimationFrame(frame);
 });

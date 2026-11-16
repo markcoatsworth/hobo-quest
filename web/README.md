@@ -5,12 +5,16 @@ Vanilla JS + Vite, drawing to a single canvas at a fixed 1280×720 that scales t
 
 ```sh
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:5174, plus a Phone: link for a phone on the same Wi-Fi
 npm run build    # static site in dist/
 npm run check    # sanity-check the rail network and the yards' trains
 npm run music    # convert the songs in ../source/music to MP3s in public/music (needs ffmpeg)
 npm run map      # rebuild public/map/*.png from ../source/usa-rail-network-2010.png
 ```
+
+On WSL the phone link needs Windows to forward port 5174 into WSL. If it doesn't (or the
+forwarding is stale, since WSL's address changes when Windows restarts), `npm run dev` prints
+the one-time Administrator PowerShell commands to fix it (see `vite.config.js`).
 
 ## The game so far
 
@@ -97,11 +101,33 @@ Screens keep their status (place, date) at the top left; the top right is for th
 Browsers hide a controller from the page until a button is pressed while it's focused.
 Button prompts follow whichever device was used last. The mouse also works on menus.
 
+## Phones and tablets
+
+Everything touch-specific is in `src/touch/`, loaded only on touch devices (a finger as the main
+pointer, with no hover; touchscreen laptops count as desktops). On a desktop or laptop the game
+looks and plays exactly the same, and never even downloads it. Add `?touch=1` to the URL to
+force touch mode (e.g. with the browser's device emulation), `?touch=0` to force it off.
+
+- **Landscape, always:** the first tap asks for full screen and a landscape lock (Android).
+  Whenever the browser is upright anyway (iPhone, or the phone's rotation lock), the whole game
+  is drawn a quarter-turn, taps turned back to match (`src/touch/screen.js`): turn the phone
+  sideways, top to the left, and it's the right way up, rotation lock or not.
+- **Controls**, drawn over the game in screen space, feed the same actions as a controller: a
+  thumbstick anywhere on the left half (push it all the way to run), a green Act button whose
+  icon shows what it'll do right now (speech bubble to talk, eye to look, door to go in or along,
+  arrow to carry on a conversation, hand to hop on, fast-forward to hurry the ride; dimmed when
+  nothing's in reach), a red ✕ Close button that only appears when there's something to close
+  (a conversation, a description, a menu), and ≡ for the pause menu. Skip in cutscenes. Menus,
+  the map and the title are tapped directly. The bottom hint bar is hidden on touch.
+- **Picture size:** the canvas is sized to exactly the visible screen, not the page's 100vh
+  (which on phones includes the space behind the toolbars and stretched the picture).
+
 ## Layout
 
 - `src/main.js`: boot, game loop, scaling, mouse
 - `src/core/`: input, menu widget, button prompts, title backdrop, saves, settings, music, RNG
 - `src/ui/`: the pause menu, the Settings panel, the corner buttons
+- `src/touch/`: phones and tablets only (detection, landscape, on-screen controls)
 - `src/scenes/`: title, map, town, yard, ride, cutscene and placeholder screens
 - `src/locations/`: one folder per stop, with subfolders for bigger areas (`new_york/family_home/`)
 - `src/characters/`: one folder per major character (the player and possible party members)

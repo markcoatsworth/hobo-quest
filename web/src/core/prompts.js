@@ -23,6 +23,8 @@ const KEYS = {
  * items: [['confirm', 'Select'], ['back', 'Back']]
  */
 export function drawPrompts(ctx, input, items, right, y) {
+  // On a phone or tablet the on-screen controls show what they do instead.
+  if (input.lastDevice === 'touch') return;
   ctx.save();
   ctx.font = `20px ${FONTS.body}`;
   ctx.textBaseline = 'middle';
