@@ -8,9 +8,12 @@
 // is shared between the two. When the shape changes, bump SAVE_VERSION and
 // teach upgradeJourney() to bring older saves forward.
 
+import { START_MONEY } from '../systems/money.js';
+import { party_new } from '../systems/party.js';
+
 const KEY = 'hobo-quest.save';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const START_CITY = 'new_york';
 export const GOAL_CITY = 'los_angeles';
 
@@ -23,6 +26,9 @@ export function newJourney() {
     day: 1,
     arrests: 0,
     missed: 0, // trains missed
+    money: START_MONEY, // cents, shared by the party (src/systems/money.js)
+    party: party_new(), // party[0] is Scout (src/systems/party.js)
+    taken: {}, // things picked up, so they stay gone: { 'location:area:prop': true }
   };
 }
 
@@ -78,6 +84,10 @@ export function upgradeJourney(old) {
       arrests: j.arrests,
       missed: j.missed,
     };
+  }
+  if (j.version === 1) {
+    // Version 1 had no party or money: Scout alone, the sheriff's five dollars.
+    j = { ...j, version: 2, money: START_MONEY, party: party_new() };
   }
   // Fill in anything newer than the save itself.
   return { ...newJourney(), ...j };

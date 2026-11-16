@@ -24,9 +24,11 @@
 //                        { lead?, tail?,      seconds of picture before and
 //                                             after the lines (a shot without
 //                                             lines can give `duration`)
-//                          lines?: [{ who, text, time?, beat? }]
+//                          lines?: [{ who, text, time?, beat?, cast? }]
 //                                             dialogue, typed out and held long
 //                                             enough to read (or `time` s).
+//                                             cast: renames speakers from this
+//                                             line on, e.g. { kid: 'Scout' }
 //                                             beat: a story moment the
 //                                             picture shows from this line on
 //                          caption?,          title text over the picture

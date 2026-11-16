@@ -7,6 +7,7 @@
 import { LOCATIONS } from '../src/locations/index.js';
 import { CUTSCENES } from '../src/cutscenes/index.js';
 import { PLAYLISTS, TRACKS } from '../src/music/index.js';
+import { ITEMS } from '../src/items/index.js';
 import { rail_check } from '../src/systems/rail.js';
 
 const problems = rail_check();
@@ -17,6 +18,11 @@ for (const loc of Object.values(LOCATIONS)) {
   for (const [id, area] of Object.entries(areas)) {
     for (const exit of area?.exits ?? []) {
       if (!areas[exit.to]) problems.push(`${loc.id} area "${id}": exit to "${exit.to}", which isn't an area of ${loc.id}`);
+    }
+    // Things to take name real items, and have an id to remember them by.
+    for (const prop of area?.props ?? []) {
+      if (prop.take && !ITEMS[prop.take]) problems.push(`${loc.id} area "${id}": ${prop.name} holds "${prop.take}", which isn't an item`);
+      if (prop.take && !prop.id) problems.push(`${loc.id} area "${id}": ${prop.name} holds an item but has no id`);
     }
   }
 }

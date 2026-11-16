@@ -47,9 +47,11 @@
 //                        skyline and street
 //     props: [...],      things you can look at: { kind, x, name, lines: [...] }.
 //                        kind: 'door' | 'coat' | 'table' | 'sink' | 'stove' |
-//                        'calendar' | 'photo' | 'bed' | 'mailbox' | 'notice'
-//                        (drawn in src/scenes/area.js). Without lines it's
-//                        just scenery.
+//                        'calendar' | 'photo' | 'bed' | 'mailbox' | 'notice' |
+//                        'cupboard' (drawn in src/scenes/area.js). Without
+//                        lines it's just scenery. With take: <item id> (and
+//                        an id), looking all the way through hands Scout the
+//                        item; afterwards it shows emptyLines instead.
 //     exits: [...],      ways to other areas of this location:
 //                        { x, to: <area id>, at: x to arrive at, label,
 //                          sign?: text on a fingerpost there }

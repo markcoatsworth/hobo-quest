@@ -5,10 +5,12 @@
 // empty house. The game picks up there: the family home, then the city.
 //
 // The teenager is deliberately neither boy nor girl: nobody says "he" or
-// "she" about them, and they're called "kid". The pictures are in art.js.
+// "she" about them. The sheriff calls them "kid"; they tell him their name,
+// Scout, partway through. The pictures are in art.js.
 
 import {
   drawBreadlineShot,
+  drawDocksShot,
   drawFarmsteadShot,
   drawFreightShot,
   drawHouseShot,
@@ -74,6 +76,23 @@ export default {
       // A river town: the bank closed, a line at the soup kitchen.
       duration: 7,
       draw: drawBreadlineShot,
+    },
+    {
+      // In the car: a name. From "Scout." on, the kid's lines are captioned
+      // Scout (the player's name for the rest of the game:
+      // src/characters/scout/).
+      lead: 1.5,
+      tail: 1.5,
+      draw: (ctx, t, cue) => drawWindshieldShot(ctx, t, cue, { kid: -3 }),
+      lines: [
+        { who: 'sheriff', text: 'What’s your name, kid?' },
+        { who: 'kid', text: 'Scout.', cast: { kid: 'Scout' } },
+      ],
+    },
+    {
+      // A dockyard gone idle: a freighter laid up, the warehouse shut.
+      duration: 7,
+      draw: drawDocksShot,
     },
     {
       // In the car: who's left at home.

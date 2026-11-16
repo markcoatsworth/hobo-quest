@@ -12,21 +12,28 @@
 //
 // {
 //   id, name,
+//   player?,             true for the player's own character (Scout)
 //   age,                 years old in April 1932
 //   from,                hometown, in words
 //   bio,                 a line or two about who they are
-//   look: { coat, pants, hat, skin },
-//                        how they're drawn in town, the same as an NPC's look.
+//   look: { coat, pants, hat, skin, hair? },
+//                        how they're drawn in town (the same as an NPC's look)
+//                        and in their party portrait.
 //                        hat: 'fedora' | 'straw' | 'cap' | 'bowler' | 'cloche'
+//   slots?,              how many things they can carry (default 4)
 // }
 //
 // Party fields (skills, stats, what they're good for on the road) come later.
 
+import scout from './scout/index.js';
 import woody from './woody/index.js';
 import judy from './judy/index.js';
 import jesse from './jesse/index.js';
 
-export const CHARACTERS = Object.fromEntries([woody, judy, jesse].map((c) => [c.id, c]));
+export const CHARACTERS = Object.fromEntries([scout, woody, judy, jesse].map((c) => [c.id, c]));
+
+// The player's character.
+export const PLAYER = 'scout';
 
 // Most people travelling together at once, the player included.
 export const PARTY_MAX = 4;

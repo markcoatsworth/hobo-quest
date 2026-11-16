@@ -13,6 +13,7 @@ import { rail_leg_days, rail_leg_miles, rail_scenery_at } from '../systems/rail.
 import { MapScene } from './map.js';
 import { TitleScene } from './title.js';
 import { PauseMenu } from '../ui/pause.js';
+import { drawPartyRow } from '../ui/party.js';
 
 const VIEW_H = 450; // scenery above, status panel below
 const HORIZON = 285;
@@ -235,6 +236,7 @@ export class TravelScene {
     ctx.restore();
 
     this.drawPanel(ctx, weather);
+    drawPartyRow(ctx, this.journey, 24, 40, { r: 20, t: this.t });
     if (this.paused) this.paused.draw(ctx);
   }
 

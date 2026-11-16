@@ -11,7 +11,7 @@ const INDOOR_SCALE = 1.3; // 186 px tall, against the 196 px door
 
 export default {
   name: 'The House',
-  width: 1560,
+  width: 1640,
   start: 150,
   figureHeight: 205,
   interior: {
@@ -52,6 +52,16 @@ export default {
       x: 1180,
       name: 'the calendar',
       lines: ['A feed-store calendar, still turned to March of last year.', 'The month Mom and your sister left. Nobody turned the page after that.'],
+    },
+    {
+      kind: 'cupboard',
+      id: 'cupboard',
+      x: 1480,
+      name: 'the cupboard',
+      verb: 'Look in the cupboard',
+      lines: ['Bare shelves, mouse droppings, a smell of damp.', 'Right at the back, missed somehow: a single can of beans. You take it.'],
+      take: 'beans',
+      emptyLines: ['Bare shelves. Nothing left, not even the beans.'],
     },
     {
       kind: 'photo',

@@ -72,6 +72,19 @@ Title → opening cutscene → the family home → New York → yard → ride �
   Depression in Heaven", which is in no playlist: it plays to its end, even after the
   cutscene, then the playlist takes over. Browsers hold back sound until the first key press
   or click, so a player using only a controller may not hear it until then.
+- **Party** (`src/systems/party.js`, `hunger.js`, `inventory.js`, `money.js`; drawn by
+  `src/ui/party.js`): Scout for now, up to four later (`src/characters/`). Each member has
+  their own hunger (0 just eaten, 100 collapsing; tiers Fed, Hungry, Starving, Collapsing) and
+  their own inventory slots; money is shared (starting with the sheriff's $5.00). Their
+  portraits sit in the top-left under the place and date, each ringed by a hunger gauge that
+  drains and turns from cream to amber to red. Click or tap a face, press I / Tab / Y, or
+  choose Party in the pause menu for the party screen: each member's hunger and what they
+  carry. Only the structure so far: hunger doesn't change yet.
+- **Items** (`src/items/items.json`, plain JSON for GameMaker too): each has a name, a kind, an
+  icon for the party screen, and for food how much it eases hunger. Props in an area can hold
+  one (`take`): look all the way through and Scout pockets it, if there's room; the save
+  remembers it's gone. The first: a can of beans at the back of the cupboard in the family
+  home's kitchen.
 - **Saves** (`src/core/save.js`): the journey is plain data (where you are, the trail, day,
   arrests...) with a version number; older saves are upgraded on load. GameMaker will use the
   same shape.
@@ -88,6 +101,7 @@ Everything is driven by named actions (`src/core/input.js`), fed by both keyboar
 | sprint  | Shift               | X, right trigger        |
 | pause   | Esc, P              | Start / Menu            |
 | mute    | M                   | (in Settings)           |
+| party   | I, Tab              | Y                       |
 
 Pause opens the same menu everywhere you can pause (areas, the map, the yard, the ride):
 Resume, Settings, and the scene's own choices (Back to the Map, Quit to Title). Settings
@@ -134,6 +148,7 @@ force touch mode (e.g. with the browser's device emulation), `?touch=0` to force
 - `src/cutscenes/`: one folder per cutscene (opening, happy and sad endings), played by
   `src/scenes/cutscene.js`; any video files go in `public/cutscenes/<id>/`
 - `src/art/`: drawing shared between cutscenes and areas (`hudson.js`: the Hudson Valley)
+- `src/items/`: every item (JSON)
 - `src/rail/`: the rail network (JSON)
 - `src/music/`: the track list; the files themselves are in `public/music/` (`npm run music`)
 - `src/systems/`: game rules as plain functions on the journey, named GameMaker-style

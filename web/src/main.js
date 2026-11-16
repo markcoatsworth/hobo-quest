@@ -6,6 +6,7 @@ import { COLORS, FONTS, W, H } from './core/screen.js';
 import { TitleScene } from './scenes/title.js';
 import { CornerButtons, toggleMute } from './ui/corner.js';
 import { SettingsPanel } from './ui/settings.js';
+import { PartyScreen, party_row_hit, party_row_reset } from './ui/party.js';
 import { isTouchDevice } from './touch/detect.js';
 
 const canvas = document.getElementById('game');
@@ -69,6 +70,11 @@ const game = {
   openSettings() {
     if (!(this.overlay instanceof SettingsPanel)) this.overlay = new SettingsPanel(this);
   },
+  /** The party screen, wherever there's a journey on (not the title or a cutscene). */
+  openParty(id = null) {
+    const journey = this.scene?.journey;
+    if (journey?.party && !(this.overlay instanceof PartyScreen)) this.overlay = new PartyScreen(this, journey, id);
+  },
 };
 game.corner = new CornerButtons(game);
 resize();
@@ -116,6 +122,15 @@ function frame(now) {
   if (game.input.pressed('mute')) toggleMute(game);
   // The corner buttons get first look at a click.
   if (game.corner.update(pointer)) pointer.clicked = false;
+  // Then the party's portraits, and the party key (I, Tab, Y), unless a
+  // menu is already open over the scene.
+  if (!game.overlay && !game.scene?.paused && game.scene?.journey?.party) {
+    const hit = pointer.clicked ? party_row_hit(pointer.x, pointer.y) : null;
+    if (hit) {
+      pointer.clicked = false;
+      game.openParty(hit);
+    } else if (game.input.pressed('party')) game.openParty();
+  }
   if (game.overlay) {
     if (game.overlay.update(dt, game.input, pointer) === 'close') game.overlay = null;
   } else {
@@ -133,6 +148,7 @@ function frame(now) {
   ctx.beginPath();
   ctx.rect(0, 0, W, H);
   ctx.clip();
+  party_row_reset();
   game.scene.draw(ctx);
   game.overlay?.draw(ctx);
   game.corner.draw(ctx);

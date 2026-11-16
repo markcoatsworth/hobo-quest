@@ -1339,3 +1339,197 @@ export function drawFreightShot(ctx, t) {
   drawHaze(ctx, 0.1);
   drawVignette(ctx);
 }
+
+// ------------------------------------------------------ a dockyard gone idle
+
+/**
+ * A Hudson River dock with no work: a freighter laid up and rusting, the
+ * crane still, the warehouse shut, men sitting on the end of the pier.
+ */
+export function drawDocksShot(ctx, t) {
+  const pan = t * 8;
+  const water = 380; // top of the river, here wide and near
+  const quay = 566; // the dock's edge, where the road side begins
+  drawSky(ctx, water, [1040, 120]);
+
+  // The far shore: the Palisades, low and grey across the water.
+  ctx.fillStyle = '#7b7e74';
+  ctx.beginPath();
+  ctx.moveTo(0, water + 1);
+  for (let k = 0; k <= W / 40 + 1; k++) ctx.lineTo(k * 40, water - 34 - fixed(k + 300) * 8);
+  ctx.lineTo(W, water + 1);
+  ctx.closePath();
+  ctx.fill();
+
+  // The river.
+  const g = ctx.createLinearGradient(0, water, 0, quay);
+  g.addColorStop(0, '#8a9a9e');
+  g.addColorStop(1, '#5e6e72');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, water, W, quay - water);
+  ctx.fillStyle = 'rgba(225, 230, 228, 0.3)';
+  for (let i = 0; i < 40; i++) {
+    const x = wrap(fixed(i + 60) * 1700 - pan * 0.5 + t * 5, W + 120) - 60;
+    ctx.fillRect(x, water + 6 + fixed(i + 90) * (quay - water - 16), 18 + fixed(i + 7) * 40, 2);
+  }
+
+  // Gulls wheeling.
+  ctx.strokeStyle = 'rgba(240, 238, 230, 0.85)';
+  ctx.lineWidth = 2;
+  for (let k = 0; k < 4; k++) {
+    const gx = 400 + k * 120 + Math.sin(t * 0.7 + k * 2) * 80;
+    const gy = 170 + fixed(k + 40) * 60 + Math.cos(t * 0.9 + k) * 18;
+    const flap = Math.sin(t * 7 + k * 1.3) * 5;
+    ctx.beginPath();
+    ctx.moveTo(gx - 9, gy - flap);
+    ctx.quadraticCurveTo(gx - 4, gy - 4, gx, gy);
+    ctx.quadraticCurveTo(gx + 4, gy - 4, gx + 9, gy - flap);
+    ctx.stroke();
+  }
+
+  ctx.save();
+  ctx.translate(-pan, 0);
+
+  // A freighter laid up mid-river: rust down the hull, the funnel cold.
+  const sx = 620;
+  const sw = 560;
+  const line = 492; // waterline
+  ctx.fillStyle = '#4a3a34';
+  ctx.beginPath();
+  ctx.moveTo(sx, line - 60);
+  ctx.lineTo(sx + sw, line - 70);
+  ctx.lineTo(sx + sw - 40, line);
+  ctx.lineTo(sx + 30, line);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(150, 70, 40, 0.5)';
+  for (let k = 0; k < 14; k++) ctx.fillRect(sx + 40 + k * 37, line - 56 + fixed(k + 5) * 6, 4 + fixed(k) * 5, 30 + fixed(k + 20) * 22);
+  ctx.fillStyle = '#5e5650';
+  ctx.fillRect(sx + 330, line - 120, 130, 58); // bridge house
+  ctx.fillStyle = '#2a2624';
+  for (let k = 0; k < 5; k++) ctx.fillRect(sx + 342 + k * 23, line - 108, 12, 12);
+  ctx.fillStyle = '#3a3230';
+  ctx.fillRect(sx + 380, line - 178, 34, 60); // funnel, no smoke
+  ctx.fillStyle = '#8a3a2e';
+  ctx.fillRect(sx + 380, line - 168, 34, 9);
+  ctx.strokeStyle = '#3a3230';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); // masts, the anchor chain
+  ctx.moveTo(sx + 120, line - 64);
+  ctx.lineTo(sx + 120, line - 200);
+  ctx.moveTo(sx + 500, line - 70);
+  ctx.lineTo(sx + 500, line - 180);
+  ctx.moveTo(sx + 30, line - 50);
+  ctx.lineTo(sx - 10, line + 30);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(30, 30, 32, 0.25)'; // its reflection
+  ctx.fillRect(sx + 34, line + 2, sw - 74, 16);
+
+  // The pier, decking gone in places, piles down into the water.
+  const deck = 520;
+  ctx.fillStyle = '#3e342c';
+  for (let px = -40; px < 560; px += 46) ctx.fillRect(px, deck, 10, quay - deck + 10);
+  ctx.fillStyle = '#6a5a48';
+  ctx.fillRect(-40, deck - 10, 260, 12);
+  ctx.fillRect(250, deck - 10, 300, 12); // a gap where the planks fell in
+  ctx.fillStyle = '#4e4238';
+  ctx.fillRect(-40, deck + 2, 590, 5);
+
+  // A crane at the pier, its hook hanging over nothing.
+  ctx.strokeStyle = '#5a3a2e';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(380, deck - 10);
+  ctx.lineTo(392, deck - 150);
+  ctx.lineTo(404, deck - 10);
+  ctx.moveTo(392, deck - 150);
+  ctx.lineTo(520, deck - 250);
+  ctx.moveTo(400, deck - 120);
+  ctx.lineTo(520, deck - 250);
+  for (let k = 1; k < 6; k++) {
+    const a = k / 6;
+    ctx.moveTo(392 + 128 * a, deck - 150 - 100 * a);
+    ctx.lineTo(400 + 120 * a, deck - 120 - 130 * a);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = '#2a2624';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(520, deck - 250);
+  ctx.lineTo(520, deck - 120 + Math.sin(t * 0.8) * 3);
+  ctx.stroke();
+  ctx.fillStyle = '#2a2624';
+  ctx.fillRect(514, deck - 120 + Math.sin(t * 0.8) * 3, 12, 10);
+
+  // Men sitting on the end of the pier, legs over the side.
+  drawFigure(ctx, 460, deck - 8, PEOPLE[1], t, { facing: 1, sit: true, scale: 0.85, phase: 1 });
+  drawFigure(ctx, 505, deck - 8, PEOPLE[4], t, { facing: 1, sit: true, scale: 0.85, phase: 3 });
+
+  // The warehouse on the quay: shut, its windows broken.
+  const wx = -20;
+  const ww = 330;
+  ctx.fillStyle = '#6e5446';
+  ctx.fillRect(wx, quay - 250, ww, 250);
+  ctx.fillStyle = '#5a4438';
+  ctx.beginPath();
+  ctx.moveTo(wx - 10, quay - 250);
+  ctx.lineTo(wx + ww / 2, quay - 290);
+  ctx.lineTo(wx + ww + 10, quay - 250);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(232, 222, 200, 0.5)';
+  ctx.font = 'bold 22px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('HUDSON STORAGE CO.', wx + ww / 2, quay - 226);
+  let i = 70;
+  for (let row = 0; row < 2; row++) for (let col = 0; col < 4; col++) drawWindow(ctx, wx + 30 + col * 76, quay - 200 + row * 62, 40, 40, i++);
+  ctx.fillStyle = '#3a2e26';
+  ctx.fillRect(wx + 110, quay - 76, 110, 76); // the big door, shut
+  ctx.strokeStyle = '#5a4a3e';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(wx + 110, quay - 76);
+  ctx.lineTo(wx + 220, quay);
+  ctx.moveTo(wx + 220, quay - 76);
+  ctx.lineTo(wx + 110, quay);
+  ctx.stroke();
+  drawSignBoard(ctx, wx + 118, quay - 128, 94, 36, [['FOR LEASE', 13, '#8a2a20']]);
+  drawSignBoard(ctx, wx + 126, quay - 62, 78, 40, [['NO MEN', 11], ['WANTED', 11]]);
+
+  // Crates and barrels nobody's come for.
+  ctx.fillStyle = '#7a6448';
+  for (const [cx, cy, s] of [
+    [330, 0, 34],
+    [366, 0, 30],
+    [345, -32, 30],
+  ]) {
+    ctx.fillRect(cx, quay - s + cy, s, s);
+    ctx.strokeStyle = '#4e3e2e';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx + 2, quay - s + cy + 2, s - 4, s - 4);
+  }
+  ctx.fillStyle = '#4e4a44';
+  for (const bx of [420, 448]) {
+    ctx.beginPath();
+    ctx.roundRect(bx, quay - 40, 24, 40, 6);
+    ctx.fill();
+  }
+  ctx.save();
+  ctx.translate(486, quay - 12); // one on its side
+  ctx.beginPath();
+  ctx.roundRect(-20, -12, 40, 24, 6);
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+
+  // The quay's edge, then the road.
+  ctx.fillStyle = '#7a7266';
+  ctx.fillRect(0, quay, W, SIDE_ROAD - 38 - quay);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(0, quay, W, 4);
+  drawRoad(ctx);
+  drawCarPassing(ctx, t, 1.0);
+  drawHaze(ctx, 0.12);
+  drawVignette(ctx);
+}

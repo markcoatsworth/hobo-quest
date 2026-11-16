@@ -13,6 +13,7 @@ import { LOCATIONS } from '../locations/index.js';
 import { rail_leg_days, rail_leg_path, rail_lines } from '../systems/rail.js';
 import { panel, TitleScene } from './title.js';
 import { PauseMenu } from '../ui/pause.js';
+import { drawPartyRow, statusLine } from '../ui/party.js';
 import { AreaScene } from './area.js';
 import { todaysTrain, YardScene } from './yard.js';
 
@@ -152,9 +153,10 @@ export class MapScene {
     const titleW = ctx.measureText('Hobo Quest').width;
     ctx.font = `20px ${FONTS.body}`;
     ctx.fillStyle = 'rgba(244, 230, 200, 0.8)';
-    const stats = [formatDate(this.journey.day)];
+    const stats = [statusLine(formatDate(this.journey.day), this.journey)];
     if (this.journey.arrests) stats.push(`${this.journey.arrests} ${this.journey.arrests === 1 ? 'arrest' : 'arrests'}`);
     ctx.fillText(stats.join('  ·  '), 28 + titleW + 30, 47);
+    drawPartyRow(ctx, this.journey, 34, 118, { r: 20, t: this.t });
     ctx.restore();
 
     this.drawPanel(ctx);

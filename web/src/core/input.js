@@ -17,11 +17,13 @@ const KEY_BINDINGS = {
   pause: ['Escape', 'KeyP'],
   sprint: ['ShiftLeft', 'ShiftRight'],
   mute: ['KeyM'], // keyboard only; on a controller it's in Settings
+  party: ['KeyI', 'Tab'], // the party screen: who's with you, what they carry
 };
 
 // "standard" mapping indices (https://w3c.github.io/gamepad/#remapping),
 // same layout as GameMaker's gp_* constants:
 // 0 A/Cross (gp_face1), 1 B/Circle (gp_face2), 2 X/Square (gp_face3),
+// 3 Y/Triangle (gp_face4),
 // 7 right trigger (gp_shoulderrb), 9 Start/Options (gp_start),
 // 12-15 D-pad up/down/left/right (gp_padu/padd/padl/padr).
 const PAD_BINDINGS = {
@@ -34,6 +36,7 @@ const PAD_BINDINGS = {
   pause: [9],
   sprint: [2, 7],
   mute: [],
+  party: [3], // Y / Triangle
 };
 
 // Analog movement: below this the stick counts as centred.

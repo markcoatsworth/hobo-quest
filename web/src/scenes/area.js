@@ -13,6 +13,10 @@ import { LOCATIONS } from '../locations/index.js';
 import { MapScene } from './map.js';
 import { panel, TitleScene } from './title.js';
 import { PauseMenu } from '../ui/pause.js';
+import { drawItemIcon } from '../ui/party.js';
+import { ITEMS } from '../items/index.js';
+import { inventory_add } from '../systems/inventory.js';
+import { drawPartyRow, statusLine } from '../ui/party.js';
 import { YardScene } from './yard.js';
 
 const BASE = 540; // where building fronts meet the sidewalk
@@ -102,7 +106,11 @@ export class AreaScene {
       if (input.pressed('back')) this.dialog = null;
       else if (input.pressed('confirm')) {
         this.dialog.line++;
-        if (this.dialog.line >= this.dialog.npc.lines.length) this.dialog = null;
+        if (this.dialog.line >= this.dialog.npc.lines.length) {
+          // Looked all the way through something with an item in it: take it.
+          if (this.dialog.take) this.take(this.dialog.take);
+          this.dialog = null;
+        }
       }
       return;
     }
@@ -165,7 +173,14 @@ export class AreaScene {
 
   interact(f) {
     if (f.type === 'npc') this.dialog = { npc: f.npc, line: 0 };
-    else if (f.type === 'prop') this.dialog = { npc: f.prop, line: 0, thing: true };
+    else if (f.type === 'prop') {
+      const prop = f.prop;
+      const full = prop.take && !this.taken(prop);
+      // Something you can take shows its lines, then you take it; once it's
+      // gone, what's left (`emptyLines`).
+      const lines = full || !prop.emptyLines ? prop.lines : prop.emptyLines;
+      this.dialog = { npc: { name: prop.name, lines }, line: 0, thing: true, take: full ? prop : null };
+    }
     else if (f.type === 'exit') {
       this.game.setScene(new AreaScene(this.game, this.journey, this.location.id, f.exit.to, { at: f.exit.at }));
     } else if (f.type === 'place') this.place = f.id;
@@ -173,6 +188,29 @@ export class AreaScene {
       if (this.yardOpen) this.game.setScene(new YardScene(this.game, this.journey));
       else this.notice = { text: 'No freights leave from here.', t: 3 };
     }
+  }
+
+  // ----------------------------------------------------------- taking things
+
+  /** The save's key for something taken from a prop here. */
+  takenKey(prop) {
+    return `${this.location.id}:${this.areaId}:${prop.id}`;
+  }
+
+  taken(prop) {
+    return !!this.journey.taken?.[this.takenKey(prop)];
+  }
+
+  /** Put a prop's item in Scout's pockets, if there's room, and remember it's gone. */
+  take(prop) {
+    const scout = this.journey.party[0];
+    if (inventory_add(scout, prop.take) < 0) {
+      this.notice = { text: 'No room to carry it. (Check the party screen: I, Tab or Y.)', t: 3 };
+      return;
+    }
+    this.journey.taken = { ...this.journey.taken, [this.takenKey(prop)]: true };
+    saveJourney(this.journey);
+    this.notice = { text: `Took the ${ITEMS[prop.take].name.toLowerCase()}.`, t: 2.5 };
   }
 
   // ------------------------------------------------------------------ draw
@@ -237,7 +275,7 @@ export class AreaScene {
     if (town.yardSign != null) drawYardSign(ctx, town.yardSign, this.yardOpen);
     for (const exit of town.exits ?? []) if (exit.sign) drawSignpost(ctx, exit.x, exit.sign);
     for (const prop of town.props ?? []) {
-      if (prop.x > this.camX - 200 && prop.x < this.camX + W + 200) drawProp(ctx, prop, this.focus?.prop === prop);
+      if (prop.x > this.camX - 200 && prop.x < this.camX + W + 200) drawProp(ctx, prop, this.focus?.prop === prop, prop.take && this.taken(prop));
     }
     ctx.restore();
     town.draw?.street?.(ctx, view);
@@ -274,7 +312,9 @@ export class AreaScene {
     ctx.fillText(this.town.name ?? this.location.name, 24, 24);
     ctx.font = `17px ${FONTS.body}`;
     ctx.fillStyle = 'rgba(244, 230, 200, 0.75)';
-    ctx.fillText(formatDate(this.journey.day), 25, 50);
+    ctx.fillText(statusLine(formatDate(this.journey.day), this.journey), 25, 50);
+    // The party under it: click or tap a face for the party screen.
+    drawPartyRow(ctx, this.journey, 24, 98, { r: 20, t: this.t });
     ctx.restore();
 
     if (this.notice && this.notice.t > 0) {
@@ -598,8 +638,8 @@ function drawInterior(ctx, room, camX) {
   }
 }
 
-/** The things in an area you can look at, by `kind`. Drawn in world x. */
-function drawProp(ctx, prop, focused) {
+/** The things in an area you can look at, by `kind`. Drawn in world x. empty: its item's been taken. */
+function drawProp(ctx, prop, focused, empty) {
   const x = prop.x;
   ctx.save();
   switch (prop.kind) {
@@ -732,6 +772,35 @@ function drawProp(ctx, prop, focused) {
         ctx.arc(x + px + 4, BASE - 256 - h, 4, 0, Math.PI * 2);
         ctx.fill();
       }
+      break;
+    }
+    case 'cupboard': {
+      // A kitchen cupboard, doors standing ajar on bare shelves.
+      ctx.fillStyle = '#4e3a2c';
+      ctx.fillRect(x - 54, BASE - 214, 108, 214);
+      ctx.fillStyle = '#2a1e18'; // inside
+      ctx.fillRect(x - 46, BASE - 204, 92, 196);
+      ctx.fillStyle = '#5e4836'; // shelves
+      for (const sy of [-150, -96, -42]) ctx.fillRect(x - 46, BASE + sy, 92, 6);
+      if (!empty && prop.take) drawItemIcon(ctx, prop.take, x + 6, BASE - 112, 26);
+      ctx.fillStyle = '#6a5240'; // the doors, swung part open
+      ctx.beginPath();
+      ctx.moveTo(x - 54, BASE - 214);
+      ctx.lineTo(x - 26, BASE - 222);
+      ctx.lineTo(x - 26, BASE + 4);
+      ctx.lineTo(x - 54, BASE);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x + 54, BASE - 214);
+      ctx.lineTo(x + 82, BASE - 224);
+      ctx.lineTo(x + 82, BASE + 6);
+      ctx.lineTo(x + 54, BASE);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#b8a070';
+      ctx.fillRect(x - 32, BASE - 112, 4, 10);
+      ctx.fillRect(x + 76, BASE - 112, 4, 10);
       break;
     }
     case 'bed': {

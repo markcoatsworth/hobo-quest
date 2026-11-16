@@ -1,0 +1,9 @@
+{
+  "beans": {
+    "name": "Can of beans",
+    "kind": "food",
+    "food": 30,
+    "icon": "can",
+    "about": "Pork and beans. The label's half gone."
+  }
+}

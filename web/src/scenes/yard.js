@@ -14,6 +14,7 @@ import { MapScene } from './map.js';
 import { TravelScene } from './travel.js';
 import { panel, TitleScene } from './title.js';
 import { PauseMenu } from '../ui/pause.js';
+import { drawPartyRow } from '../ui/party.js';
 
 const TOP = 72; // fence lines
 const BOTTOM = 676;
@@ -648,12 +649,14 @@ export class YardScene {
   drawHud(ctx) {
     ctx.save();
     ctx.textBaseline = 'middle';
+    // The party first, small, then the yard's name beside it.
+    const tx = 24 + drawPartyRow(ctx, this.journey, 20, 38, { r: 16, t: this.t }) + 20;
     ctx.fillStyle = COLORS.cream;
     ctx.font = `24px ${FONTS.title}`;
-    ctx.fillText(`${LOCATIONS[this.from].name} Yard`, 24, 30);
+    ctx.fillText(`${LOCATIONS[this.from].name} Yard`, tx, 26);
     ctx.font = `16px ${FONTS.body}`;
     ctx.fillStyle = 'rgba(244, 230, 200, 0.7)';
-    ctx.fillText(`${formatDate(this.journey.day)}  ·  Freight to ${LOCATIONS[this.to].name} on the east track`, 24, 56);
+    ctx.fillText(`${formatDate(this.journey.day)}  ·  Freight to ${LOCATIONS[this.to].name} on the east track`, tx, 52);
 
     ctx.textAlign = 'center';
     const left = this.train.departIn;

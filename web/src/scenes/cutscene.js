@@ -196,6 +196,20 @@ export class CutsceneScene {
     ctx.restore();
   }
 
+  /**
+   * Speaker names as of a given line: the cutscene's cast, with any renames
+   * made by lines up to and including this one (a line's `cast`).
+   */
+  castAt(shotIndex, lineIndex) {
+    const cast = { ...this.cutscene.cast };
+    this.cutscene.shots.forEach((shot, s) => {
+      (shot.lines ?? []).forEach((line, l) => {
+        if (line.cast && (s < shotIndex || (s === shotIndex && l <= lineIndex))) Object.assign(cast, line.cast);
+      });
+    });
+    return cast;
+  }
+
   drawLine(ctx, line, y) {
     const x = 150;
     const w = W - 300;
@@ -209,7 +223,7 @@ export class CutsceneScene {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    const name = this.cutscene.cast?.[line.who] ?? line.who;
+    const name = this.castAt(this.shotIndex, this.line)[line.who] ?? line.who;
     ctx.textBaseline = 'top';
     ctx.fillStyle = COLORS.accent;
     ctx.font = `22px ${FONTS.title}`;

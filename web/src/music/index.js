@@ -39,6 +39,18 @@ export const TRACKS = {
     source: 'new-lost-city-ramblers-how-can-a-poor-man-stand-such-times-and-live.flac',
     file: 'music/how_can_a_poor_man.mp3',
   },
+  boys_my_moneys_all_gone: {
+    title: 'Boys, My Money’s All Gone',
+    artist: 'The New Lost City Ramblers',
+    source: 'new-lost-city-ramblers-boys-my-moneys-all-gone.flac',
+    file: 'music/boys_my_moneys_all_gone.mp3',
+  },
+  taxes_on_the_farmer: {
+    title: 'Taxes on the Farmer Feeds Us All',
+    artist: 'The New Lost City Ramblers',
+    source: 'new-lost-city-ramblers-taxes-on-the-farmer-feeds-us-all.flac',
+    file: 'music/taxes_on_the_farmer.mp3',
+  },
 
   // Philadelphia
   forked_deer: {
@@ -52,6 +64,6 @@ export const TRACKS = {
 export const PLAYLISTS = {
   // "No Depression in Heaven" is the opening cutscene's song and isn't in
   // any playlist.
-  new_york: ['breadline_blues', 'how_can_a_poor_man'],
+  new_york: ['breadline_blues', 'how_can_a_poor_man', 'boys_my_moneys_all_gone', 'taxes_on_the_farmer'],
   philadelphia: ['forked_deer'],
 };
