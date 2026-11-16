@@ -1,15 +1,19 @@
 // Inside the family home. Everything still where it was left: Dad's coat,
 // the bottles, the calendar stopped the month Mom and your sister went west.
 // You're drawn here as in the farmyard and the opening cutscene
-// (src/art/hudson.js), not with the smaller town figure.
+// (src/art/hudson.js), not with the smaller town figure, and bigger than
+// outdoors because the room is seen from closer: the door clears your cap,
+// and Dad's coat hangs beside you.
 
 import { drawKidSide } from '../../../art/hudson.js';
+
+const INDOOR_SCALE = 1.3; // 186 px tall, against the 196 px door
 
 export default {
   name: 'The House',
   width: 1560,
   start: 150,
-  figureHeight: 160,
+  figureHeight: 205,
   interior: {
     wall: '#a89a7c',
     wainscot: '#7a5e46',
@@ -60,7 +64,7 @@ export default {
 
   draw: {
     person(ctx, { x, feet, facing, step, t }) {
-      drawKidSide(ctx, x, feet, t, { facing, step });
+      drawKidSide(ctx, x, feet, t, { facing, step, scale: INDOOR_SCALE });
     },
   },
 };

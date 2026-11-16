@@ -536,6 +536,10 @@ function drawSignpost(ctx, x, text) {
 
 // ------------------------------------------------------------- interiors
 
+// Windows and things on the wall hang this much lower than they're drawn,
+// so a person indoors comes up to them the way they would in a real room.
+const HANG = 60;
+
 /** Indoors: wallpaper, wainscot and floorboards, windows onto the weather. */
 function drawInterior(ctx, room, camX) {
   const wall = room.wall ?? '#a89a7c';
@@ -568,6 +572,8 @@ function drawInterior(ctx, room, camX) {
   for (const wx of room.windows ?? []) {
     const x = wx - camX;
     if (x < -120 || x > W + 120) continue;
+    ctx.save();
+    ctx.translate(0, HANG); // at a person's height, not up by the ceiling
     ctx.fillStyle = '#3e3026';
     ctx.fillRect(x - 56, BASE - 330, 112, 150);
     const g = ctx.createLinearGradient(0, BASE - 320, 0, BASE - 190);
@@ -588,6 +594,7 @@ function drawInterior(ctx, room, camX) {
     ctx.lineTo(x - 52, BASE - 180);
     ctx.lineTo(x - 60, BASE - 180);
     ctx.fill();
+    ctx.restore();
   }
 }
 
@@ -611,6 +618,7 @@ function drawProp(ctx, prop, focused) {
       break;
     }
     case 'coat': {
+      ctx.translate(0, HANG);
       ctx.fillStyle = '#3e3026';
       ctx.fillRect(x - 40, BASE - 260, 80, 8);
       ctx.fillStyle = '#2a2420';
@@ -687,6 +695,7 @@ function drawProp(ctx, prop, focused) {
       break;
     }
     case 'calendar': {
+      ctx.translate(0, HANG);
       ctx.fillStyle = '#2a2420';
       ctx.fillRect(x - 1, BASE - 296, 2, 8);
       ctx.fillStyle = '#e8e0cc';
@@ -706,6 +715,7 @@ function drawProp(ctx, prop, focused) {
       break;
     }
     case 'photo': {
+      ctx.translate(0, HANG);
       ctx.fillStyle = '#3e2e22';
       ctx.fillRect(x - 36, BASE - 300, 72, 56);
       ctx.fillStyle = '#b8a07a';

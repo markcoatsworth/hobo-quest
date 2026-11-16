@@ -8,7 +8,7 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # static site in dist/
 npm run check    # sanity-check the rail network and the yards' trains
-npm run music    # copy the songs from ../source/music into public/music
+npm run music    # convert the songs in ../source/music to MP3s in public/music (needs ffmpeg)
 npm run map      # rebuild public/map/*.png from ../source/usa-rail-network-2010.png
 ```
 

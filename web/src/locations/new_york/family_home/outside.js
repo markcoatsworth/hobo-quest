@@ -9,7 +9,8 @@
 
 import {
   BANK,
-  HOUSE_X,
+  HOUSE_DOOR,
+  HOUSE_SCALE,
   RIVER_TOP,
   YARD,
   drawBareTree,
@@ -28,7 +29,7 @@ import {
   drawVignette,
 } from '../../../art/hudson.js';
 
-const DOOR = HOUSE_X + 166; // the middle of the house's front door
+const DOOR = HOUSE_DOOR; // the middle of the house's front door
 const ROAD_SIGN = 2480;
 
 export default {
@@ -39,13 +40,13 @@ export default {
   facing: -1, // looking at the house
   camera: 0,
   feet: YARD + 4,
-  figureHeight: 160,
+  figureHeight: 145,
 
   npcs: [
     {
       id: 'neighbour',
       name: 'Mrs. Vandermeer',
-      x: 1990,
+      x: 1950,
       look: { coat: '#5a4a5a', hat: 'cloche', hatColor: '#6a3a4a', skin: '#e6c0a0' },
       lines: [
         'Oh, child. I heard about your father. I’m so sorry.',
@@ -58,7 +59,7 @@ export default {
   // Things to look at. Their pictures are part of the backdrop below.
   props: [
     {
-      x: DOOR + 46,
+      x: DOOR + 60,
       name: 'the notice on the door',
       verb: 'Read the notice on the door',
       lines: [
@@ -73,7 +74,7 @@ export default {
       lines: ['Across the field, the mill where Dad worked eleven years, until they let him go.', 'No smoke from the stacks. There hasn’t been since the winter.'],
     },
     {
-      x: 1750,
+      x: 1700,
       name: 'the barn',
       lines: ['Empty stalls. Dad sold the mule and the plough last fall to keep up with the mortgage.', 'It didn’t keep up.'],
     },
@@ -99,8 +100,8 @@ export default {
       drawBareTree(ctx, 560, YARD - 4, 2.2);
       drawHouse(ctx);
       drawMailbox(ctx, 630);
-      drawBarn(ctx, 1600, YARD);
-      drawNeighbours(ctx, 2060, YARD, t);
+      drawBarn(ctx, 1500, YARD);
+      drawNeighbours(ctx, 2010, YARD, t);
       ctx.restore();
 
       drawRoad(ctx);
@@ -125,6 +126,14 @@ export default {
 
 /** The family's barn, still standing, doors shut on nothing. */
 function drawBarn(ctx, x, base) {
+  ctx.save();
+  ctx.translate(x, base);
+  ctx.scale(HOUSE_SCALE, HOUSE_SCALE);
+  drawBarnAt(ctx, 0, 0);
+  ctx.restore();
+}
+
+function drawBarnAt(ctx, x, base) {
   ctx.fillStyle = '#6e3c30';
   ctx.fillRect(x, base - 190, 300, 190);
   ctx.fillStyle = '#4e3a32';
@@ -162,6 +171,15 @@ function drawBarn(ctx, x, base) {
 
 /** The Vandermeers' place: kept up, a curl of smoke from the chimney. */
 function drawNeighbours(ctx, x, base, t) {
+  // Built to the same scale as the family's house.
+  ctx.save();
+  ctx.translate(x, base);
+  ctx.scale(HOUSE_SCALE, HOUSE_SCALE);
+  drawNeighboursAt(ctx, 0, 0, t);
+  ctx.restore();
+}
+
+function drawNeighboursAt(ctx, x, base, t) {
   ctx.fillStyle = '#7a6656';
   ctx.fillRect(x + 190, base - 236, 22, 60);
   drawSmoke(ctx, x + 200, base - 238, t, 0.7);

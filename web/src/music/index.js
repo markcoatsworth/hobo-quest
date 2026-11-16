@@ -1,5 +1,5 @@
-// The game's music. Originals live in source/music/; `npm run music` copies
-// each track listed here into public/music/ for the web build.
+// The game's music. Originals live in source/music/; `npm run music` converts
+// each track listed here to an MP3 in public/music/ for the game.
 //
 // TRACKS: every song.
 //   id: {
@@ -25,19 +25,19 @@ export const TRACKS = {
     title: 'No Depression in Heaven',
     artist: 'The New Lost City Ramblers',
     source: 'new-lost-city-ramblers-no-depression-in-heaven.flac',
-    file: 'music/no_depression_in_heaven.flac',
+    file: 'music/no_depression_in_heaven.mp3',
   },
   breadline_blues: {
     title: 'Breadline Blues',
     artist: 'The New Lost City Ramblers',
     source: 'new-lost-city-ramblers-breadline-blues.flac',
-    file: 'music/breadline_blues.flac',
+    file: 'music/breadline_blues.mp3',
   },
   how_can_a_poor_man: {
     title: 'How Can a Poor Man Stand Such Times and Live?',
     artist: 'The New Lost City Ramblers',
     source: 'new-lost-city-ramblers-how-can-a-poor-man-stand-such-times-and-live.flac',
-    file: 'music/how_can_a_poor_man.flac',
+    file: 'music/how_can_a_poor_man.mp3',
   },
 
   // Philadelphia
@@ -45,7 +45,7 @@ export const TRACKS = {
     title: 'Forked Deer',
     artist: 'The New Lost City Ramblers',
     source: 'new-lost-city-ramblers-forked-deer.flac',
-    file: 'music/forked_deer.flac',
+    file: 'music/forked_deer.mp3',
   },
 };
 

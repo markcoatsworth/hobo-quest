@@ -340,10 +340,24 @@ export function drawDustTrail(ctx, x, y, t, strength = 1) {
   }
 }
 
-export const HOUSE_X = 150;
+// Sizes, so people, doors and cars agree: the house's front door is 156 px
+// tall, the kid 126 (KID_SCALE), the sheriff's car 136 to its roof.
+export const HOUSE_X = 80;
+export const HOUSE_SCALE = 1.3;
+export const HOUSE_DOOR = HOUSE_X + 166 * HOUSE_SCALE; // the middle of its front door
 export const YARD = 600; // ground where the house and the kid stand
+export const KID_SCALE = 0.88; // the kid outdoors; drawn bigger indoors, where the camera's closer
+
 /** The family's house, weathered and boarded: its left wall at x, standing on base. */
-export function drawHouse(ctx, x = HOUSE_X, base = YARD) {
+export function drawHouse(ctx, x = HOUSE_X, base = YARD, scale = HOUSE_SCALE) {
+  ctx.save();
+  ctx.translate(x, base);
+  ctx.scale(scale, scale);
+  drawHouseAt(ctx, 0, 0);
+  ctx.restore();
+}
+
+function drawHouseAt(ctx, x, base) {
   // Chimney, roof, walls of grey weathered boards.
   ctx.fillStyle = '#6e5a4a';
   ctx.fillRect(x + 250, base - 270, 26, 70);
@@ -415,12 +429,13 @@ export function drawMailbox(ctx, x) {
 }
 
 /** The teenager standing side-on, facing left. */
-export function drawKidSide(ctx, x, feet, t, { facing = -1, step = 0 } = {}) {
+export function drawKidSide(ctx, x, feet, t, { facing = -1, step = 0, scale = KID_SCALE } = {}) {
   const walking = step !== 0;
   const swing = Math.sin(step) * 9;
   const breathe = walking ? -Math.abs(Math.sin(step)) * 2 : Math.sin(t * 2) * 0.8;
   ctx.save();
   ctx.translate(x, feet);
+  ctx.scale(scale, scale);
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath();
   ctx.ellipse(0, 2, 26, 6, 0, 0, Math.PI * 2);
