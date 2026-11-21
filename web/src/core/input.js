@@ -13,12 +13,14 @@ const KEY_BINDINGS = {
   left: ['ArrowLeft', 'KeyA'],
   right: ['ArrowRight', 'KeyD'],
   confirm: ['Enter', 'NumpadEnter', 'Space'], // menus and dialogue
-  act: ['Space'], // doing things in the yard: hop on, climb, read
+  act: ['Space'], // doing things: talk, look, go in; hop on, climb, read; hurry the ride
   back: ['Escape', 'Backspace'],
   pause: ['Escape', 'KeyP'],
   sprint: ['ShiftLeft', 'ShiftRight'],
   mute: ['KeyM'], // keyboard only; on a controller it's in Settings
-  party: ['KeyI', 'Tab'], // the party screen: who's with you, what they carry
+  party: ['KeyI', 'Tab'], // the journal: the party, the map, the notebook
+  prevTab: ['KeyQ'], // the journal's tabs
+  nextTab: ['KeyE'],
 };
 
 // "standard" mapping indices (https://w3c.github.io/gamepad/#remapping),
@@ -39,6 +41,8 @@ const PAD_BINDINGS = {
   sprint: [2, 7],
   mute: [],
   party: [3], // Y / Triangle
+  prevTab: [4], // LB / L1
+  nextTab: [5], // RB / R1
 };
 
 // Analog movement: below this the stick counts as centred.

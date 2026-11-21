@@ -25,6 +25,8 @@ import { TravelScene } from '../scenes/travel.js';
 import { YardScene } from '../scenes/yard.js';
 import { FONTS } from '../core/screen.js';
 import { TouchScreen } from './screen.js';
+import { status_hit } from '../ui/status.js';
+import { Dialog } from '../ui/dialog.js';
 
 const MARGIN = 18; // CSS px from the edge of the safe area
 const STICK_R = 58; // how far the thumb travels for full speed
@@ -45,6 +47,7 @@ const MODES = {
   ride: ['a', 'menu'], // on the train: hold A to hurry
   map: ['menu'],
   back: ['b'], // a menu is open over the game
+  talk: ['a', 'b'], // a conversation (src/ui/dialog.js): A for the next line, B to end it
   cutscene: ['skip'],
   none: [], // title screen, yard results: just tap
 };
@@ -118,7 +121,10 @@ export class TouchLayer {
         if (x >= r.x - 10 && x <= r.x + r.w + 10 && y >= r.y - 10 && y <= r.y + r.h + 10) return id;
       } else if (Math.hypot(x - L[id].x, y - L[id].y) < BUTTONS[id].r + 14) return id;
     }
-    // The left half is the thumbstick's.
+    // The status plate, top left, is the game's: a tap there opens the journal.
+    const w = this.game.worldAt(x, y);
+    if (status_hit(w.x, w.y)) return null;
+    // The rest of the left half is the thumbstick's.
     if (MODES[this.mode].includes('stick') && x < this.screen.size().w / 2) return 'stick';
     return null;
   }
@@ -172,6 +178,7 @@ export class TouchLayer {
   currentMode() {
     const { game } = this;
     const s = game.scene;
+    if (game.overlay instanceof Dialog) return 'talk';
     if (game.overlay || s?.paused) return 'back';
     if (s instanceof CutsceneScene) return 'cutscene';
     if (s instanceof AreaScene) return 'move';
@@ -185,9 +192,9 @@ export class TouchLayer {
   currentContext() {
     const s = this.game.scene;
     if (this.mode === 'back') return { act: 'hand', ready: false, close: true };
+    if (this.mode === 'talk') return { act: 'next', ready: true, close: true };
     if (this.mode === 'ride') return { act: 'hurry', ready: true, close: false };
     if (s instanceof AreaScene) {
-      if (s.dialog) return { act: 'next', ready: true, close: true };
       if (s.place) return { act: 'next', ready: true, close: true };
       const verb = { npc: 'talk', prop: 'look', exit: 'door', place: 'door', yard: 'door' }[s.focus?.type];
       return { act: verb ?? 'hand', ready: !!verb, close: false };
@@ -219,7 +226,7 @@ export class TouchLayer {
         if (mag >= RUN_AT) down.add('sprint');
       } else {
         down.add(BUTTONS[touch.control].action);
-        if (touch.control === 'a') down.add('act'); // the yard's own action
+        if (touch.control === 'a') down.add('act'); // doing things: town, yard, the ride
       }
     }
     // The stick also steps through menus, like a controller's.

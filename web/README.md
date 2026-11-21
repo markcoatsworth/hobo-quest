@@ -41,14 +41,14 @@ Title → opening cutscene → the family home → New York → yard → ride �
   straight to the yard.
 - **Ride** (`src/scenes/travel.js`): Oregon Trail-style travel screen. The freight runs west
   through scenery that changes by region (per line in `src/rail/network.json`), with day and night,
-  weather, and a status panel: date (from April 4, 1932), weather, next stop, miles. Hold confirm
+  weather, and a status panel: date (from April 4, 1932), weather, next stop, miles. Hold Space (A)
   to hurry. Quitting mid-ride resumes at the start of that ride.
 - **Areas** (`src/scenes/area.js`): every place you walk around side-on, indoors or out: each
   location's main street (`town`) and its other areas. Talk to people, look at things (props),
   step into places (stores, diners, missions, landmarks, future mini-games), take exits to
-  other areas (a door, a road), and take the rail yard sign. New York's family home
-  (`src/locations/new_york/family_home/`) is a farmyard with a walkable house inside and the
-  road to the city at the far end. It draws itself with the opening cutscene's own art
+  other areas (a door, a road), and take the rail yard sign, all with Space (A). New York's
+  family home (`src/locations/new_york/family_home/`) is a farmyard with a walkable house
+  inside and the road to the city at the far end. It draws itself with the opening cutscene's own art
   (`src/art/hudson.js`, shared by both), so the cutscene's last frame and the farmyard's first
   are the same picture: the sheriff drives off and you're already playing.
 - **Yard** (`src/scenes/yard.js`, each city's own in `src/locations/<id>/yard.js`): cross the
@@ -65,7 +65,7 @@ Title → opening cutscene → the family home → New York → yard → ride �
   stunned. Bulls patrol with lanterns: stay out of the light and use parked cars as cover.
   Shunting cars, and freights pulling out, knock you down. Getting caught, or missing every
   freight, costs a day. In the yard, Space (A on a controller) does things: hop on, climb,
-  read; Enter is for menus. The only way back to town is on foot, through the gate in the west
+  read; Enter is for menus (and Space works there too). The only way back to town is on foot, through the gate in the west
   fence where you came in, and not with a bull chasing you.
 - **Locations** (`src/locations/<id>/index.js`): one hand-written module per stop holding
   everything about it: map position, blurb, its areas (street layout, buildings, signs, places
@@ -89,15 +89,41 @@ Title → opening cutscene → the family home → New York → yard → ride �
   cutscene, then the playlist takes over. Browsers hold back sound until the first key press
   or click, so a player using only a controller may not hear it until then.
 - **Party** (`src/systems/party.js`, `hunger.js`, `inventory.js`, `money.js`; drawn by
-  `src/ui/party.js`): Scout for now, up to four later (`src/characters/`). Each member has
+  `src/ui/party.js`): Scout, and up to three others met along the way (`src/characters/`).
+  The first is Jesse, nineteen, a runner from Cleveland heading west for the Olympic trials
+  (in the spirit of Jesse Owens). He's waiting just inside the gate of Cleveland's rail yard
+  (the yard's `meet`), stops Scout on the way in, and joins; the yard waits while you talk,
+  so he can't be missed. Every way to Kansas City runs through Cleveland. Starting from the
+  URL anywhere past Cleveland, he's already with you. (Someone on a street can join too: an
+  NPC with `joins`.) Each member has
   their own hunger (0 just eaten, 100 collapsing; tiers Fed, Hungry, Starving, Collapsing) and
   their own inventory slots; money is shared (starting with the sheriff's $5.00). Their
-  portraits sit in the top-left under the place and date, each ringed by a hunger gauge that
-  drains and turns from cream to amber to red. Click or tap a face, press I / Tab / Y, or
-  choose Party in the pause menu for the party screen: each member's hunger and what they
+  portraits are on the status plate, each ringed by a hunger gauge that drains and turns from
+  cream to amber to red; the journal's Party page shows each member's hunger and what they
   carry. Only the structure so far: hunger doesn't change yet.
+- **Conversations** (`src/ui/dialog.js`): one kind, the same everywhere: talking to someone in
+  town, looking at something, someone who stops Scout in a yard. A scene only starts one; it
+  opens over the scene like the journal, and the scene holds still until it's done (no yard
+  clock, trains or bulls moving mid-sentence). Space or Enter (A) for the next line, Esc (B)
+  to end it. Someone with `joins` joins when it ends, with the same word on screen anywhere.
+  Only the speaker's face shows, in a round frame half over the box's edge: Scout on the left
+  with their words left-aligned, whoever Scout's talking with on the right with their name and
+  words right-aligned. Characters (`src/characters/`) show their headshot, drawn from their
+  look like the party portraits; anyone else a plain grey head for now. Things you look at
+  have no face.
+- **Status plate** (`src/ui/status.js`): top left on every screen with a journey on (town,
+  yard, the ride, the map), one framed plate: where you are with the date and money (pinned to
+  the corner, so they never move), then every party member's face. Beside it, a button of
+  its own for the journal. Clicking or tapping the button or anywhere on the plate opens the
+  journal (a face opens that member's page).
+- **Journal** (`src/ui/journal.js`): one screen of tabs for things to look at rather than do.
+  Party; Map, the rail network to look at only (where you are, the trail ridden, the lines
+  out of here and their days; no travelling from it); Notebook, what Scout has read in each
+  rail yard. Open it from the status plate, with I / Tab / Y, or Journal in the pause menu;
+  Q / E (LB / RB) or a tap on a tab turns the page. The map is drawn by `src/ui/railmap.js`,
+  shared with the map screen.
 - **Items** (`src/items/items.json`, plain JSON for GameMaker too): each has a name, a kind, an
-  icon for the party screen, and for food how much it eases hunger. Props in an area can hold
+  icon for the journal, and for food how much it eases hunger. Props in an area can hold
   one (`take`): look all the way through and Scout pockets it, if there's room; the save
   remembers it's gone. The first: a can of beans at the back of the cupboard in the family
   home's kitchen.
@@ -119,15 +145,24 @@ Everything is driven by named actions (`src/core/input.js`), fed by both keyboar
 | pause   | Esc, P              | Start / Menu            |
 | mute    | M                   | (in Settings)           |
 | party   | I, Tab              | Y                       |
+| tabs    | Q, E                | LB, RB                  |
 
 Pause opens the same menu everywhere you can pause (areas, the map, the yard, the ride):
-Resume, Settings, and the scene's own choices (Back to the Map, Quit to Title). Settings
+Resume, Journal, Settings, and the scene's own choices (Quit to Title). Settings
 (music volume, mute, controller rumble, full screen) is also on the title screen and, for
 mouse players, behind the gear in the top-right corner beside a mute button. Those two
 buttons only show while the mouse is in use. Settings save in the browser, apart from the
 journey (`src/core/settings.js`).
 
-Screens keep their status (place, date) at the top left; the top right is for the buttons.
+The screen's corners each have one job. Top left is you: the status plate, the way into the
+journal. Top right is the system: mute and settings (the ≡ menu on phones). Bottom left is
+moving (the thumbstick on phones), bottom right is doing (buttons on phones, prompts on a
+desktop), and the top centre is for the screen's own things (the yard clock, messages).
+Anything new to open goes in the journal as a tab, so the corners stay as they are.
+
+Over anything clickable (menu items, the status plate and journal button, the corner buttons,
+the journal's tabs and faces, Settings rows) the mouse shows a pointing hand
+(`src/core/cursor.js`).
 
 Browsers hide a controller from the page until a button is pressed while it's focused.
 Button prompts follow whichever device was used last. The mouse also works on menus.
@@ -158,7 +193,8 @@ force touch mode (e.g. with the browser's device emulation), `?touch=0` to force
 - `src/main.js`: boot, game loop, scaling, mouse
 - `src/start.js`: starting at a location from the URL (`?location=...&area=...`)
 - `src/core/`: input, menu widget, button prompts, title backdrop, saves, settings, music, RNG
-- `src/ui/`: the pause menu, the Settings panel, the corner buttons
+- `src/ui/`: conversations, the status plate, the journal, the rail map, the pause menu, the
+  Settings panel, the corner buttons
 - `src/touch/`: phones and tablets only (detection, landscape, on-screen controls)
 - `src/scenes/`: title, map, town, yard, ride, cutscene and placeholder screens
 - `src/locations/`: one folder per stop: `index.js` (who and where), `town.js` (the main street),

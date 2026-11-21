@@ -3,6 +3,7 @@
 // Up/down picks a row, left/right (or confirm) changes it, back closes.
 // Changes apply and save immediately (src/core/settings.js).
 
+import { cursor_point } from '../core/cursor.js';
 import { drawPrompts } from '../core/prompts.js';
 import { MUSIC_STEPS, settings_get, settings_set } from '../core/settings.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
@@ -65,6 +66,7 @@ export class SettingsPanel {
     if (input.repeat('down')) this.index = (this.index + 1) % n;
 
     // Mouse: hover picks the row; clicking the arrows steps, elsewhere toggles.
+    if (pointer && this.rows.some((_, k) => Math.abs(pointer.y - this.rowY(k)) < ROW_H / 2 && Math.abs(pointer.x - W / 2) < PANEL_W / 2)) cursor_point();
     if (pointer?.moved || pointer?.clicked) {
       const i = this.rows.findIndex((_, k) => Math.abs(pointer.y - this.rowY(k)) < ROW_H / 2 && Math.abs(pointer.x - W / 2) < PANEL_W / 2);
       if (i >= 0) this.index = i;

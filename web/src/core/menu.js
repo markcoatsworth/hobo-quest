@@ -2,6 +2,7 @@
 // as a convenience, the mouse. Disabled items are drawn greyed out and
 // skipped by the cursor.
 
+import { cursor_point } from './cursor.js';
 import { COLORS, FONTS } from './screen.js';
 
 export class Menu {
@@ -56,6 +57,7 @@ export class Menu {
     if (input.repeat('up')) this.move(-1);
     if (input.repeat('down')) this.move(1);
 
+    if (pointer && this.hit(pointer.x, pointer.y) >= 0) cursor_point();
     if (pointer?.moved) {
       const i = this.hit(pointer.x, pointer.y);
       if (i >= 0) this.index = i;

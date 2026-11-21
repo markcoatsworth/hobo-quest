@@ -1,13 +1,13 @@
-// The pause menu, the same everywhere you can pause: Resume, Party (when
-// there's a journey on), Settings, then whatever the scene adds (Back to
-// the Map, Quit to Title). Opened with
+// The pause menu, the same everywhere you can pause: Resume, Journal (when
+// there's a journey on), Settings, then whatever the scene adds (Quit to
+// Title). Opened with
 // Start on a controller, Esc or P on a keyboard; Start, Esc or B closes it.
 
 import { Menu } from '../core/menu.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
 import { panel } from '../scenes/title.js';
 import { SettingsPanel } from './settings.js';
-import { PartyScreen } from './party.js';
+import { Journal } from './journal.js';
 
 export class PauseMenu {
   /**
@@ -19,14 +19,14 @@ export class PauseMenu {
     this.journey = game.scene?.journey?.party ? game.scene.journey : null;
     const all = [
       { id: 'resume', label: resume },
-      ...(this.journey ? [{ id: 'party', label: 'Party' }] : []),
+      ...(this.journey ? [{ id: 'journal', label: 'Journal' }] : []),
       { id: 'settings', label: 'Settings' },
       ...items,
     ];
     this.h = 120 + all.length * 54;
     this.y = (H - this.h) / 2;
     this.menu = new Menu(all, { x: W / 2, y: this.y + 110, rowH: 54, width: 340, fontSize: 28 });
-    this.sub = null; // Settings or the party screen, open over the menu
+    this.sub = null; // Settings or the journal, open over the menu
     this.t = 0;
   }
 
@@ -43,8 +43,8 @@ export class PauseMenu {
       this.sub = new SettingsPanel(this.game);
       return null;
     }
-    if (choice === 'party') {
-      this.sub = new PartyScreen(this.game, this.journey);
+    if (choice === 'journal') {
+      this.sub = new Journal(this.game, this.journey);
       return null;
     }
     return choice;

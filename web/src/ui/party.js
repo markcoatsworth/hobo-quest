@@ -1,18 +1,15 @@
-// The party on screen: a row of portraits in the top-left status block, and
-// the party screen they open (click or tap a portrait, I or Tab, Y on a
-// controller, or Party in the pause menu).
+// The party on screen: portraits (in the status plate, src/ui/status.js,
+// and elsewhere) and the journal's Party tab (src/ui/journal.js).
 //
 // Each portrait carries its member's hunger as a ring that drains as they
 // get hungrier: cream when fed, amber when hungry, red when starving, and
 // pulsing when they're about to collapse.
 
-import { drawPrompts } from '../core/prompts.js';
-import { COLORS, FONTS, W, H } from '../core/screen.js';
+import { cursor_point } from '../core/cursor.js';
+import { COLORS, FONTS } from '../core/screen.js';
 import { CHARACTERS } from '../characters/index.js';
 import { hunger_fullness, hunger_tier } from '../systems/hunger.js';
 import { inventory_free } from '../systems/inventory.js';
-import { money_format } from '../systems/money.js';
-import { panel } from '../scenes/title.js';
 import { ITEMS } from '../items/index.js';
 
 const RING = {
@@ -31,7 +28,41 @@ export function drawPortrait(ctx, member, x, y, r, t = 0, { selected = false } =
   const tier = hunger_tier(member.hunger);
   ctx.save();
 
-  // The face, clipped to the circle.
+  drawHead(ctx, look, x, y, r);
+
+  // The hunger ring: a dark track, the colour of their tier for how full they are.
+  const ringW = Math.max(3, r * 0.16);
+  ctx.lineWidth = ringW;
+  ctx.strokeStyle = 'rgba(16, 10, 10, 0.75)';
+  ctx.beginPath();
+  ctx.arc(x, y, r + ringW / 2, 0, Math.PI * 2);
+  ctx.stroke();
+  const pulse = tier.id === 'collapse' ? 0.55 + 0.45 * Math.abs(Math.sin(t * 4)) : tier.id === 'starving' ? 0.75 + 0.25 * Math.abs(Math.sin(t * 2.5)) : 1;
+  ctx.globalAlpha = pulse;
+  ctx.strokeStyle = RING[tier.id];
+  ctx.lineCap = 'round';
+  const full = hunger_fullness(member.hunger);
+  ctx.beginPath();
+  ctx.arc(x, y, r + ringW / 2, -Math.PI / 2, -Math.PI / 2 + Math.max(0.05, full) * Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  if (selected) {
+    ctx.strokeStyle = COLORS.accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r + ringW + 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * A headshot: a character's head and shoulders in a circle of radius r,
+ * drawn from their look. With no look (someone without a headshot yet),
+ * a plain grey head.
+ */
+export function drawHead(ctx, look, x, y, r) {
+  if (!look) return drawGreyHead(ctx, x, y, r);
   ctx.save();
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -61,30 +92,24 @@ export function drawPortrait(ctx, member, x, y, r, t = 0, { selected = false } =
   ctx.fill();
   drawHat(ctx, look.hat, x, y, r);
   ctx.restore();
+}
 
-  // The hunger ring: a dark track, the colour of their tier for how full they are.
-  const ringW = Math.max(3, r * 0.16);
-  ctx.lineWidth = ringW;
-  ctx.strokeStyle = 'rgba(16, 10, 10, 0.75)';
+/** A stand-in headshot: a grey head and shoulders, no face. */
+function drawGreyHead(ctx, x, y, r) {
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(x, y, r + ringW / 2, 0, Math.PI * 2);
-  ctx.stroke();
-  const pulse = tier.id === 'collapse' ? 0.55 + 0.45 * Math.abs(Math.sin(t * 4)) : tier.id === 'starving' ? 0.75 + 0.25 * Math.abs(Math.sin(t * 2.5)) : 1;
-  ctx.globalAlpha = pulse;
-  ctx.strokeStyle = RING[tier.id];
-  ctx.lineCap = 'round';
-  const full = hunger_fullness(member.hunger);
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = '#3a3836';
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  ctx.fillStyle = '#76726c';
   ctx.beginPath();
-  ctx.arc(x, y, r + ringW / 2, -Math.PI / 2, -Math.PI / 2 + Math.max(0.05, full) * Math.PI * 2);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-  if (selected) {
-    ctx.strokeStyle = COLORS.accent;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, r + ringW + 4, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  ctx.ellipse(x, y + r * 0.95, r * 0.8, r * 0.55, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(x - r * 0.12, y + r * 0.1, r * 0.24, r * 0.3);
+  ctx.beginPath();
+  ctx.ellipse(x, y - r * 0.05, r * 0.34, r * 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -108,124 +133,83 @@ function drawHat(ctx, hat, x, y, r) {
   }
 }
 
-// ------------------------------------------------------- the row of faces
-
-// Where the row was drawn this frame, so a click or tap on a face can open
-// the party screen (main.js checks this before the scene's update).
-let rowHits = [];
-
-/** Forget last frame's row (main.js, before drawing). */
-export function party_row_reset() {
-  rowHits = [];
-}
-
-/** The id of the member whose portrait is at (px, py), or null. */
-export function party_row_hit(px, py) {
-  return rowHits.find((h) => Math.hypot(px - h.x, py - h.y) <= h.r + 6)?.id ?? null;
-}
-
-/** The party's portraits in a row, the first centred at (x + r, y). Returns the row's width. */
-export function drawPartyRow(ctx, journey, x, y, { r = 22, t = 0 } = {}) {
-  const gap = r * 0.75;
-  journey.party.forEach((member, i) => {
-    const cx = x + r + i * (r * 2 + gap);
-    drawPortrait(ctx, member, cx, y, r, t);
-    rowHits.push({ id: member.id, x: cx, y, r });
-  });
-  return journey.party.length * (r * 2 + gap) - gap;
-}
-
-/** The status line under a place name: date and money. */
-export function statusLine(date, journey) {
-  return `${date}  ·  ${money_format(journey.money)}`;
-}
-
-// --------------------------------------------------------- party screen
+// ------------------------------------------------------------ party tab
 
 const SLOT = 84;
 const SLOT_GAP = 14;
 
 /**
- * Who's in the party and what they carry. One member at a time, chosen
- * with left/right (or by clicking their face along the bottom).
+ * The journal's Party tab: who's in the party and what they carry. One
+ * member at a time, chosen with left/right or by their face along the
+ * bottom. Drawn inside the box the journal gives it (800 × 480).
  */
-export class PartyScreen {
-  constructor(game, journey, startId = null) {
-    this.game = game;
+export class PartyTab {
+  constructor(journey, startId = null) {
     this.journey = journey;
     this.index = Math.max(0, journey.party.findIndex((m) => m.id === startId));
-    this.t = 0;
-    this.box = { x: W / 2 - 400, y: H / 2 - 250, w: 800, h: 480 };
   }
 
   get member() {
     return this.journey.party[this.index];
   }
 
-  tabX(i) {
+  faceX(box, i) {
     const n = this.journey.party.length;
-    return W / 2 + (i - (n - 1) / 2) * 70;
+    return box.x + box.w / 2 + (i - (n - 1) / 2) * 70;
   }
 
-  /** Returns 'close' when done. */
-  update(dt, input, pointer) {
-    this.t += dt;
-    if (input.pressed('back') || input.pressed('pause') || input.pressed('party')) return 'close';
+  update(dt, input, pointer, box) {
     const n = this.journey.party.length;
     if (input.repeat('left')) this.index = (this.index + n - 1) % n;
     if (input.repeat('right')) this.index = (this.index + 1) % n;
+    const faceY = box.y + box.h - 52;
+    const over = pointer ? this.journey.party.findIndex((_, i) => Math.hypot(pointer.x - this.faceX(box, i), pointer.y - faceY) < 30) : -1;
+    if (over >= 0 && over !== this.index) cursor_point();
     if (pointer?.clicked) {
-      const tabY = this.box.y + this.box.h - 52;
       this.journey.party.forEach((_, i) => {
-        if (Math.hypot(pointer.x - this.tabX(i), pointer.y - tabY) < 30) this.index = i;
+        if (Math.hypot(pointer.x - this.faceX(box, i), pointer.y - faceY) < 30) this.index = i;
       });
     }
-    return null;
   }
 
-  draw(ctx) {
-    const { x, y, w, h } = this.box;
+  prompts() {
+    return this.journey.party.length > 1 ? [['move', 'Choose']] : [];
+  }
+
+  draw(ctx, box, t) {
+    const { x, y, h } = box;
     const member = this.member;
     const c = CHARACTERS[member.id];
     const tier = hunger_tier(member.hunger);
     ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(0, 0, W, H);
-    panel(ctx, x, y, w, h, '#1c1212');
     ctx.textBaseline = 'middle';
-
-    // Heading.
-    ctx.textAlign = 'left';
-    ctx.fillStyle = COLORS.cream;
-    ctx.font = `30px ${FONTS.title}`;
-    ctx.fillText('The Party', x + 40, y + 46);
 
     // Left: who they are, and how hungry.
     const px = x + 150;
-    drawPortrait(ctx, member, px, y + 160, 70, this.t);
+    drawPortrait(ctx, member, px, y + 120, 70, t);
     ctx.textAlign = 'center';
     ctx.fillStyle = COLORS.accent;
     ctx.font = `28px ${FONTS.title}`;
-    ctx.fillText(c?.name ?? member.id, px, y + 268);
+    ctx.fillText(c?.name ?? member.id, px, y + 228);
     ctx.font = `19px ${FONTS.body}`;
     ctx.fillStyle = RING[tier.id];
-    ctx.fillText(tier.label, px, y + 302);
+    ctx.fillText(tier.label, px, y + 262);
     // A gauge of how full they are.
     ctx.fillStyle = 'rgba(244, 230, 200, 0.15)';
-    ctx.fillRect(px - 80, y + 322, 160, 10);
+    ctx.fillRect(px - 80, y + 282, 160, 10);
     ctx.fillStyle = RING[tier.id];
-    ctx.fillRect(px - 80, y + 322, 160 * hunger_fullness(member.hunger), 10);
-    if (c?.bio) wrapCentre(ctx, c.bio, px, y + 360, 240, 22, `15px ${FONTS.body}`, 'rgba(244, 230, 200, 0.6)');
+    ctx.fillRect(px - 80, y + 282, 160 * hunger_fullness(member.hunger), 10);
+    if (c?.bio) wrapCentre(ctx, c.bio, px, y + 320, 240, 22, `15px ${FONTS.body}`, 'rgba(244, 230, 200, 0.6)');
 
     // Right: what they carry, one thing to a slot.
     const sx = x + 330;
     ctx.textAlign = 'left';
     ctx.fillStyle = COLORS.cream;
     ctx.font = `22px ${FONTS.title}`;
-    ctx.fillText('Carrying', sx, y + 104);
+    ctx.fillText('Carrying', sx, y + 64);
     member.inventory.forEach((item, i) => {
       const bx = sx + i * (SLOT + SLOT_GAP);
-      const by = y + 132;
+      const by = y + 92;
       ctx.fillStyle = 'rgba(244, 230, 200, 0.05)';
       ctx.fillRect(bx, by, SLOT, SLOT);
       ctx.strokeStyle = 'rgba(244, 230, 200, 0.3)';
@@ -245,19 +229,12 @@ export class PartyScreen {
     ctx.font = `17px ${FONTS.body}`;
     ctx.fillStyle = 'rgba(244, 230, 200, 0.55)';
     const free = inventory_free(member);
-    ctx.fillText(
-      free === member.inventory.length ? 'Pockets empty.' : `${free} of ${member.inventory.length} slots free.`,
-      sx,
-      y + 250,
-    );
+    ctx.fillText(free === member.inventory.length ? 'Pockets empty.' : `${free} of ${member.inventory.length} slots free.`, sx, y + 210);
 
     // Bottom: everyone in the party, to choose between.
-    const tabY = y + h - 52;
-    this.journey.party.forEach((m, i) => drawPortrait(ctx, m, this.tabX(i), tabY, 22, this.t, { selected: i === this.index }));
+    const faceY = y + h - 52;
+    this.journey.party.forEach((m, i) => drawPortrait(ctx, m, this.faceX(box, i), faceY, 22, t, { selected: i === this.index }));
     ctx.restore();
-
-    const prompts = this.journey.party.length > 1 ? [['move', 'Choose'], ['back', 'Close']] : [['back', 'Close']];
-    drawPrompts(ctx, this.game.input, prompts, x + w - 30, y + h + 30);
   }
 }
 

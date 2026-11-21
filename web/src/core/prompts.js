@@ -10,6 +10,7 @@ const PAD = {
   sprint: { label: 'X', color: '#3d72c8' },
   pause: { label: '\u2261', color: '#6b6b6b' },
   move: { label: 'L', color: '#6b6b6b' },
+  tabs: { label: 'LB RB', color: '#6b6b6b' },
 };
 const KEYS = {
   confirm: 'Enter',
@@ -18,7 +19,17 @@ const KEYS = {
   sprint: 'Shift',
   pause: 'Esc',
   move: 'WASD',
+  tabs: 'Q E',
 };
+
+// Off while the scene is drawn under an overlay (a conversation, the
+// journal, Settings), which shows its own: main.js sets it each frame.
+let hidden = false;
+
+/** Hide (true) or show the prompts drawn from now on. */
+export function prompts_hide(on) {
+  hidden = on;
+}
 
 /**
  * Draw a row of prompts right-aligned at (right, y).
@@ -26,7 +37,7 @@ const KEYS = {
  */
 export function drawPrompts(ctx, input, items, right, y) {
   // On a phone or tablet the on-screen controls show what they do instead.
-  if (input.lastDevice === 'touch') return;
+  if (input.lastDevice === 'touch' || hidden) return;
   ctx.save();
   ctx.font = `20px ${FONTS.body}`;
   ctx.textBaseline = 'middle';
@@ -39,15 +50,26 @@ export function drawPrompts(ctx, input, items, right, y) {
 
     if (input.lastDevice === 'gamepad') {
       const b = PAD[action];
-      ctx.fillStyle = b.color;
-      ctx.beginPath();
-      ctx.arc(x - 14, y, 14, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
       ctx.font = `bold 16px Arial, sans-serif`;
-      ctx.fillText(b.label, x - 14, y + 1);
-      x -= 28;
+      ctx.fillStyle = b.color;
+      if (b.label.length > 2) {
+        // Shoulder buttons: a pill.
+        const w = ctx.measureText(b.label).width + 18;
+        roundRect(ctx, x - w, y - 14, w, 28, 14);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.label, x - w / 2, y + 1);
+        x -= w;
+      } else {
+        ctx.beginPath();
+        ctx.arc(x - 14, y, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.label, x - 14, y + 1);
+        x -= 28;
+      }
     } else {
       const label = KEYS[action];
       ctx.font = `15px Arial, sans-serif`;

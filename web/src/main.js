@@ -6,7 +6,10 @@ import { COLORS, FONTS, W, H } from './core/screen.js';
 import { TitleScene } from './scenes/title.js';
 import { CornerButtons, toggleMute } from './ui/corner.js';
 import { SettingsPanel } from './ui/settings.js';
-import { PartyScreen, party_row_hit, party_row_reset } from './ui/party.js';
+import { Journal } from './ui/journal.js';
+import { status_hit, status_hover, status_reset } from './ui/status.js';
+import { cursor_css, cursor_point, cursor_reset } from './core/cursor.js';
+import { prompts_hide } from './core/prompts.js';
 import { isTouchDevice } from './touch/detect.js';
 import { startFromUrl } from './start.js';
 
@@ -34,10 +37,13 @@ window.addEventListener('resize', resize);
 // Mouse, in world coordinates. Optional: everything works without it.
 const pointer = { x: -1, y: -1, moved: false, clicked: false };
 function toWorld(e) {
-  const dpr = window.devicePixelRatio || 1;
   const p = game.touch?.screen.fromClient(e.clientX, e.clientY) ?? { x: e.clientX, y: e.clientY };
-  pointer.x = (p.x * dpr - view.ox) / view.scale;
-  pointer.y = (p.y * dpr - view.oy) / view.scale;
+  ({ x: pointer.x, y: pointer.y } = worldAt(p.x, p.y));
+}
+/** A point on the (landscape) screen, in CSS pixels, as world coordinates. */
+function worldAt(x, y) {
+  const dpr = window.devicePixelRatio || 1;
+  return { x: (x * dpr - view.ox) / view.scale, y: (y * dpr - view.oy) / view.scale };
 }
 // On a phone or tablet a finger counts as touch (src/touch/ handles that);
 // everywhere else, touchscreen laptops included, it's the mouse as ever.
@@ -68,13 +74,18 @@ const game = {
   setScene(scene) {
     this.scene = scene;
   },
+  worldAt: (x, y) => worldAt(x, y),
   openSettings() {
     if (!(this.overlay instanceof SettingsPanel)) this.overlay = new SettingsPanel(this);
   },
-  /** The party screen, wherever there's a journey on (not the title or a cutscene). */
-  openParty(id = null) {
+  /**
+   * The journal (src/ui/journal.js), wherever there's a journey on (not the
+   * title or a cutscene). tab: 'party' | 'map' | 'notebook'; member: whose
+   * page the Party tab opens on.
+   */
+  openJournal({ tab, member } = {}) {
     const journey = this.scene?.journey;
-    if (journey?.party && !(this.overlay instanceof PartyScreen)) this.overlay = new PartyScreen(this, journey, id);
+    if (journey?.party && !(this.overlay instanceof Journal)) this.overlay = new Journal(this, journey, { tab, member });
   },
 };
 game.corner = new CornerButtons(game);
@@ -121,23 +132,36 @@ function frame(now) {
   game.input.update(dt);
   game.backdrop.update(dt);
   if (game.input.pressed('mute')) toggleMute(game);
+  cursor_reset();
   // The corner buttons get first look at a click.
   if (game.corner.update(pointer)) pointer.clicked = false;
-  // Then the party's portraits, and the party key (I, Tab, Y), unless a
-  // menu is already open over the scene.
-  if (!game.overlay && !game.scene?.paused && game.scene?.journey?.party) {
-    const hit = pointer.clicked ? party_row_hit(pointer.x, pointer.y) : null;
-    if (hit) {
+  // Then the status plate (a face opens that member's page), and the
+  // journal key (I, Tab, Y), unless a menu is already open over the scene.
+  // (It waits a frame before it listens, or the key that opened it would
+  // close it again.)
+  let opened = false;
+  const plateLive = !game.overlay && !game.scene?.paused && game.scene?.journey?.party;
+  status_hover(plateLive ? pointer.x : -1, pointer.y);
+  if (plateLive) {
+    if (status_hit(pointer.x, pointer.y)) cursor_point();
+    const hit = pointer.clicked ? status_hit(pointer.x, pointer.y) : null;
+    if (hit || game.input.pressed('party')) {
       pointer.clicked = false;
-      game.openParty(hit);
-    } else if (game.input.pressed('party')) game.openParty();
+      game.openJournal({ member: hit?.id });
+      opened = true;
+    }
   }
-  if (game.overlay) {
+  if (opened) {
+    // Nothing more this frame.
+  } else if (game.overlay) {
     if (game.overlay.update(dt, game.input, pointer) === 'close') game.overlay = null;
   } else {
     game.scene.update(dt, game.input, pointer);
   }
   pointer.moved = pointer.clicked = false;
+  // A hand over whatever's clickable (src/core/cursor.js).
+  const cursor = game.input.lastDevice === 'mouse' ? cursor_css() : '';
+  if (canvas.style.cursor !== cursor) canvas.style.cursor = cursor;
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#0b0908';
@@ -149,8 +173,11 @@ function frame(now) {
   ctx.beginPath();
   ctx.rect(0, 0, W, H);
   ctx.clip();
-  party_row_reset();
+  status_reset();
+  // The scene's own prompts give way to whatever's open over it.
+  prompts_hide(!!game.overlay);
   game.scene.draw(ctx);
+  prompts_hide(false);
   game.overlay?.draw(ctx);
   game.corner.draw(ctx);
   drawToast(dt);

@@ -4,7 +4,6 @@
 // the rail yard. Everything here is drawn from the location's module in
 // src/locations/<id>/; nothing is generated.
 
-import { formatDate } from '../core/calendar.js';
 import { music_follow_trail } from '../core/music.js';
 import { drawPrompts } from '../core/prompts.js';
 import { saveJourney } from '../core/save.js';
@@ -16,7 +15,10 @@ import { PauseMenu } from '../ui/pause.js';
 import { drawItemIcon } from '../ui/party.js';
 import { ITEMS } from '../items/index.js';
 import { inventory_add } from '../systems/inventory.js';
-import { drawPartyRow, statusLine } from '../ui/party.js';
+import { party_has } from '../systems/party.js';
+import { CHARACTERS } from '../characters/index.js';
+import { drawStatusPlate } from '../ui/status.js';
+import { dialog_open } from '../ui/dialog.js';
 import { YardScene } from './yard.js';
 
 const BASE = 540; // where building fronts meet the sidewalk
@@ -61,13 +63,17 @@ export class AreaScene {
     this.location = LOCATIONS[locationId];
     this.areaId = areaId;
     this.town = areaId === 'town' ? this.location.town : this.location.areas[areaId];
+    // The people here. Someone who can join the party (joins: a character
+    // id) takes their name and look from their character file.
+    this.people = (this.town.npcs ?? []).map((npc) =>
+      npc.joins ? { ...npc, name: npc.name ?? CHARACTERS[npc.joins].name, look: npc.look ?? CHARACTERS[npc.joins].look } : npc,
+    );
     this.sky = SKIES[this.town.sky] ?? SKIES.day;
     this.player = { x: at ?? this.town.start, facing: facing ?? this.town.facing ?? 1, step: 0 };
     this.feet = this.town.feet ?? FEET;
     this.hud = fromCutscene ? 0 : 1; // header and prompts, 0..1
     this.camX = 0;
     this.t = 0;
-    this.dialog = null; // { npc, line }
     this.place = null; // place id being visited
     this.notice = null; // short message, e.g. no yard yet
     this.focus = null;
@@ -102,18 +108,6 @@ export class AreaScene {
     }
     if (this.notice) this.notice.t -= dt;
 
-    if (this.dialog) {
-      if (input.pressed('back')) this.dialog = null;
-      else if (input.pressed('confirm')) {
-        this.dialog.line++;
-        if (this.dialog.line >= this.dialog.npc.lines.length) {
-          // Looked all the way through something with an item in it: take it.
-          if (this.dialog.take) this.take(this.dialog.take);
-          this.dialog = null;
-        }
-      }
-      return;
-    }
     if (this.place) {
       if (input.pressed('back') || input.pressed('confirm')) this.place = null;
       return;
@@ -144,14 +138,14 @@ export class AreaScene {
     this.camX = this.clampCam(this.camX);
 
     this.focus = this.nearest();
-    if (this.focus && input.pressed('confirm')) this.interact(this.focus);
+    if (this.focus && input.pressed('act')) this.interact(this.focus);
   }
 
   /** The closest thing within reach: a person, a thing, a doorway, an exit, or the way to the yard. */
   nearest() {
     const px = this.player.x;
     const options = [];
-    for (const npc of this.town.npcs ?? []) options.push({ type: 'npc', x: npc.x, npc, verb: `Talk to ${npc.name}` });
+    for (const npc of this.here()) options.push({ type: 'npc', x: npc.x, npc, verb: `Talk to ${npc.name}` });
     for (const prop of this.town.props ?? []) {
       if (prop.lines) options.push({ type: 'prop', x: prop.x, prop, verb: prop.verb ?? `Look at ${prop.name}` });
     }
@@ -172,14 +166,18 @@ export class AreaScene {
   }
 
   interact(f) {
-    if (f.type === 'npc') this.dialog = { npc: f.npc, line: 0 };
-    else if (f.type === 'prop') {
+    // Talking and looking are conversations (src/ui/dialog.js): someone who
+    // joins does at the end of it.
+    if (f.type === 'npc') {
+      const { name, lines, joins, character } = f.npc;
+      dialog_open(this.game, { name, who: character ?? joins, lines, joins, journey: this.journey });
+    } else if (f.type === 'prop') {
       const prop = f.prop;
       const full = prop.take && !this.taken(prop);
-      // Something you can take shows its lines, then you take it; once it's
-      // gone, what's left (`emptyLines`).
+      // Something you can take shows its lines, then you take it, if you
+      // looked all the way through; once it's gone, what's left (`emptyLines`).
       const lines = full || !prop.emptyLines ? prop.lines : prop.emptyLines;
-      this.dialog = { npc: { name: prop.name, lines }, line: 0, thing: true, take: full ? prop : null };
+      dialog_open(this.game, { name: prop.name, lines, quoted: false, onEnd: (finished) => full && finished && this.take(prop) });
     }
     else if (f.type === 'exit') {
       this.game.setScene(new AreaScene(this.game, this.journey, this.location.id, f.exit.to, { at: f.exit.at }));
@@ -202,10 +200,15 @@ export class AreaScene {
   }
 
   /** Put a prop's item in Scout's pockets, if there's room, and remember it's gone. */
+  /** The people standing here: not anyone who's already joined the party. */
+  here() {
+    return this.people.filter((npc) => !(npc.joins && party_has(this.journey, npc.joins)));
+  }
+
   take(prop) {
     const scout = this.journey.party[0];
     if (inventory_add(scout, prop.take) < 0) {
-      this.notice = { text: 'No room to carry it. (Check the party screen: I, Tab or Y.)', t: 3 };
+      this.notice = { text: 'No room to carry it. (Check the journal: I, Tab or Y.)', t: 3 };
       return;
     }
     this.journey.taken = { ...this.journey.taken, [this.takenKey(prop)]: true };
@@ -284,7 +287,7 @@ export class AreaScene {
     ctx.save();
     ctx.translate(-this.camX, 0);
     const person = town.draw?.person;
-    for (const npc of town.npcs ?? []) {
+    for (const npc of this.here()) {
       const facing = this.player.x < npc.x ? -1 : 1;
       if (person) person(ctx, { x: npc.x, feet: this.feet, look: npc.look, facing, step: 0, t: this.t });
       else drawPerson(ctx, npc.x, this.feet, npc.look, facing, 0, this.t);
@@ -292,7 +295,7 @@ export class AreaScene {
     const p = this.player;
     if (person) person(ctx, { x: p.x, feet: this.feet, facing: p.facing, step: p.step, t: this.t, player: true });
     else drawPerson(ctx, p.x, this.feet, HOBO, p.facing, p.step, this.t, true);
-    if (this.focus && !this.dialog && !this.place) {
+    if (this.focus && !this.game.overlay && !this.place) {
       ctx.globalAlpha = this.hud;
       bubble(ctx, this.focus.verb, p.x, this.feet - (town.figureHeight ?? 110), this.camX);
       ctx.globalAlpha = 1;
@@ -300,22 +303,8 @@ export class AreaScene {
     ctx.restore();
     town.draw?.over?.(ctx, view);
 
-    // Header.
-    ctx.save();
-    ctx.globalAlpha = this.hud;
-    ctx.fillStyle = 'rgba(10, 8, 8, 0.55)';
-    ctx.fillRect(0, 0, W, 64);
-    ctx.textBaseline = 'middle';
-    // Status top left: where and when. The top right is for the corner buttons.
-    ctx.fillStyle = COLORS.cream;
-    ctx.font = `26px ${FONTS.title}`;
-    ctx.fillText(this.town.name ?? this.location.name, 24, 24);
-    ctx.font = `17px ${FONTS.body}`;
-    ctx.fillStyle = 'rgba(244, 230, 200, 0.75)';
-    ctx.fillText(statusLine(formatDate(this.journey.day), this.journey), 25, 50);
-    // The party under it: click or tap a face for the party screen.
-    drawPartyRow(ctx, this.journey, 24, 98, { r: 20, t: this.t });
-    ctx.restore();
+    // Status top left (src/ui/status.js): who, where, when; it opens the journal.
+    drawStatusPlate(ctx, this.journey, { title: this.town.name ?? this.location.name, t: this.t, alpha: this.hud });
 
     if (this.notice && this.notice.t > 0) {
       ctx.save();
@@ -329,34 +318,15 @@ export class AreaScene {
       ctx.restore();
     }
 
-    if (this.dialog) this.drawDialog(ctx);
-    else if (this.place) this.drawPlace(ctx);
+    if (this.place) this.drawPlace(ctx);
 
-    const prompts = this.dialog
-      ? [['confirm', 'Next'], ['back', 'Done']]
-      : this.place
-        ? [['back', 'Leave']]
-        : [['sprint', 'Hurry'], ['confirm', 'Act'], ['pause', 'Menu']];
+    const prompts = this.place ? [['back', 'Leave']] : [['sprint', 'Hurry'], ['act', 'Act'], ['pause', 'Menu']];
     ctx.save();
     ctx.globalAlpha = this.hud;
     drawPrompts(ctx, this.game.input, prompts, W - 24, H - 22);
     ctx.restore();
 
     if (this.paused) this.paused.draw(ctx);
-  }
-
-  drawDialog(ctx) {
-    const { npc, line, thing } = this.dialog;
-    // Up top, clear of the street, so you can see who's talking.
-    panel(ctx, 120, 80, W - 240, 150, '#1c1212');
-    ctx.save();
-    ctx.fillStyle = COLORS.accent;
-    ctx.font = `22px ${FONTS.title}`;
-    ctx.textBaseline = 'middle';
-    ctx.fillText(npc.name, 150, 112);
-    // People are quoted; things you look at are described.
-    wrapLeft(ctx, thing ? npc.lines[line] : `“${npc.lines[line]}”`, 150, 154, W - 300, 28, `20px ${FONTS.body}`, COLORS.cream);
-    ctx.restore();
   }
 
   drawPlace(ctx) {

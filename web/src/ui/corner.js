@@ -2,6 +2,7 @@
 // They only show while the mouse is the device in use: with a keyboard or
 // controller, the same things are in the pause menu (and M mutes).
 
+import { cursor_point } from '../core/cursor.js';
 import { settings_get, settings_set } from '../core/settings.js';
 import { W } from '../core/screen.js';
 
@@ -28,6 +29,7 @@ export class CornerButtons {
     if (!this.visible || pointer.x < 0) return false;
     const hit = BUTTONS.find((b) => Math.hypot(pointer.x - b.x, pointer.y - Y) < R + 4);
     this.hover = hit?.id ?? null;
+    if (hit) cursor_point();
     if (!hit || !pointer.clicked) return false;
     if (hit.id === 'mute') toggleMute(this.game);
     else this.game.openSettings();

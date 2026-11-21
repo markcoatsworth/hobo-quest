@@ -70,6 +70,20 @@
 //                        'landmark' | 'game' | 'home'. stock: [[item, price]]; game: the
 //                        mini-game it will host.
 //     npcs: [...],       { id, name, x, look: { coat, pants, hat, skin }, lines: [...] }
+//                        Talking to them is a conversation (src/ui/dialog.js,
+//                        the same everywhere): a line is a string (the person
+//                        speaking) or { by: <character id>, text } for someone
+//                        else in it, e.g. Scout answering.
+//                        Their headshot shows in the conversation if they're
+//                        a character (joins, or character: <id>); anyone else
+//                        gets a plain grey head for now.
+//                        character?: <character id>: this is that character
+//                        (their headshot), without joining
+//                        joins?: <character id>: someone who joins the party
+//                        when the conversation ends (name and look then
+//                        default to their character file's), and isn't
+//                        standing here after that. (To meet someone who
+//                        can't be missed, use a yard's `meet`.)
 //     lamps: [x, ...],   street lamps
 //     yardSign,          x of the way to the rail yard (omit where there's no yard)
 //     draw?: { far?(ctx, view), street?(ctx, view), backdrop?(ctx, view),
@@ -116,6 +130,13 @@
 //                        card, or the board and a plate. All checked by
 //                        `npm run check`.
 //     bulls: [...],      { x, y, dir }: each walks the aisle at x
+//     meet?: { joins, x, y, lines, name?, look? }
+//                        someone waiting in the yard to join the party
+//                        (joins: their character id). They stop Scout as
+//                        Scout comes near and the yard waits while they
+//                        talk (lines, as an NPC's); then they join. Put them
+//                        by the gate and they can't be missed (Jesse,
+//                        Cleveland). Gone once they're in the party.
 //
 //     Hooks, for what's particular to one yard (all optional). Each gets
 //     the yard scene as `yard` (yard.t: seconds in; yard.top / yard.bottom:

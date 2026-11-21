@@ -19,7 +19,6 @@
 // and draw.over for its own pictures, and `clues` for extra things to read.
 // The scene is passed in as `yard`; yard.top / yard.bottom are the fences.
 
-import { formatDate } from '../core/calendar.js';
 import { drawPrompts } from '../core/prompts.js';
 import { seeded } from '../core/rng.js';
 import { saveJourney } from '../core/save.js';
@@ -31,7 +30,10 @@ import { MapScene } from './map.js';
 import { TravelScene } from './travel.js';
 import { panel, TitleScene } from './title.js';
 import { PauseMenu } from '../ui/pause.js';
-import { drawPartyRow } from '../ui/party.js';
+import { drawStatusPlate } from '../ui/status.js';
+import { dialog_open } from '../ui/dialog.js';
+import { CHARACTERS } from '../characters/index.js';
+import { party_has } from '../systems/party.js';
 
 const TOP = 72; // fence lines
 const BOTTOM = 676;
@@ -59,6 +61,7 @@ const CATCH_RANGE = 22;
 const HOP_RANGE = 34;
 const CLIMB_TIME = 1.4; // seconds to climb across a coupling between two cars
 const CLIMB_REACH = 24; // how close (up and down the train) to a coupling to climb it
+const MEET_RANGE = 56; // how close someone waiting in the yard lets Scout get before they speak
 const TRAIN_ACCEL = 11; // px/s² once it departs
 const TRAIN_MAX = 95;
 
@@ -157,6 +160,9 @@ export class YardScene {
     this.office = office ? { x: office.x - OFFICE_W / 2, y: office.y - OFFICE_H / 2, w: OFFICE_W, h: OFFICE_H } : null;
     // For the yard's own hooks: the fences, and anything solid they add.
     this.gateY = player; // the gate to town is where you came in
+    // Someone waiting here to join the party, until they have.
+    const m = this.layout.meet;
+    this.meet = m && !party_has(this.journey, m.joins) ? { ...m, name: m.name ?? CHARACTERS[m.joins].name, look: m.look ?? CHARACTERS[m.joins].look } : null;
     this.top = TOP;
     this.bottom = BOTTOM;
     this.obstacles = [];
@@ -284,6 +290,18 @@ export class YardScene {
 
     // Every freight gone without you.
     if (this.trains.every((t) => t.gone)) return this.finish('missed');
+
+    // Someone waiting in the yard (its `meet`) stops Scout on the way past,
+    // and talks (src/ui/dialog.js: the yard holds still till they're done).
+    const m = this.meet;
+    if (m && !this.climb && Math.hypot(this.player.x - m.x, this.player.y - m.y) < MEET_RANGE) {
+      this.focus = null;
+      this.intro = 0; // the yard's name banner gives way
+      this.meet = null; // they join at the end, however it ends
+      dialog_open(this.game, { name: m.name, lines: m.lines, joins: m.joins, journey: this.journey });
+      this.met = m; // still drawn, facing Scout, while they talk
+      return;
+    }
 
     // Whatever's in reach: hop aboard, or read something.
     this.focus = this.climb ? null : this.nearest();
@@ -699,6 +717,7 @@ export class YardScene {
     this.drawDoorGlows(ctx);
     this.drawSmoke(ctx);
 
+    this.drawMeet(ctx);
     this.drawPlayer(ctx);
     for (const b of this.bulls) this.drawBull(ctx, b);
     this.layout.draw?.over?.(ctx, this);
@@ -876,6 +895,39 @@ export class YardScene {
     ctx.restore();
   }
 
+  /** Whoever's waiting in the yard (its `meet`), seen from above like Scout, turned to face them. */
+  drawMeet(ctx) {
+    // Waiting, or talking (until they've joined and gone with Scout).
+    const m = this.meet ?? (this.met && !party_has(this.journey, this.met.joins) ? this.met : null);
+    if (!m) return;
+    const look = m.look;
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(2, 3, 12, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.rotate(Math.atan2(this.player.y - m.y, this.player.x - m.x));
+    ctx.fillStyle = look.skin; // hands
+    ctx.fillRect(-3, -10, 6, 4);
+    ctx.fillRect(-3, 6, 6, 4);
+    ctx.fillStyle = look.coat;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 8, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = look.skin; // head
+    ctx.beginPath();
+    ctx.arc(1, 0, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2b2622'; // cap, peak forward
+    ctx.beginPath();
+    ctx.arc(0, 0, 5.5, Math.PI / 2, -Math.PI / 2);
+    ctx.fill();
+    ctx.fillRect(0, -3, 6, 6);
+    ctx.restore();
+    if (this.meet) label(ctx, m.name, m.x, m.y - 22, COLORS.cream, 14);
+  }
+
   drawPlayer(ctx) {
     const p = this.player;
     ctx.save();
@@ -970,26 +1022,23 @@ export class YardScene {
     ctx.save();
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    // The party first, small, then the yard's name beside it.
-    const tx = 24 + drawPartyRow(ctx, this.journey, 20, 38, { r: 16, t: this.t }) + 20;
-    ctx.fillStyle = COLORS.cream;
-    ctx.font = `24px ${FONTS.title}`;
-    ctx.fillText(`${LOCATIONS[this.from].name} Yard`, tx, 26);
-    ctx.font = `16px ${FONTS.body}`;
-    ctx.fillStyle = 'rgba(244, 230, 200, 0.7)';
-    const n = this.trains.length;
-    ctx.fillText(`${formatDate(this.journey.day)}  ·  ${n} ${n === 1 ? 'freight' : 'freights'} leaving tonight`, tx, 52);
+    // Status top left (src/ui/status.js); it opens the journal.
+    const plate = drawStatusPlate(ctx, this.journey, { title: `${LOCATIONS[this.from].name} Yard`, t: this.t });
 
-    // The yard clock, and the next one out.
+    // The yard clock, and the next one out: top centre, or as near it as the
+    // plate leaves room for (a long name and a full party).
+    const cx = Math.max(W / 2, plate.x + plate.w + 175);
     ctx.textAlign = 'center';
     ctx.fillStyle = COLORS.cream;
     ctx.font = `26px ${FONTS.body}`;
-    ctx.fillText(yard_clock(this.clock), W / 2, 26);
+    ctx.fillText(yard_clock(this.clock), cx, 26);
     const next = this.trains.filter((t) => !t.gone).sort((a, b) => a.departIn - b.departIn)[0];
     if (next) {
       ctx.font = `15px ${FONTS.body}`;
       ctx.fillStyle = next.departIn <= 10 ? '#ff9a6a' : 'rgba(244, 230, 200, 0.7)';
-      ctx.fillText(next.departIn > 0 ? `next freight out ${yard_clock(CLOCK_START + next.def.departs)}` : 'a freight’s pulling out!', W / 2, 52);
+      const left = this.trains.filter((t) => !t.gone).length;
+      const tonight = `${left} ${left === 1 ? 'freight' : 'freights'} tonight`;
+      ctx.fillText(next.departIn > 0 ? `${tonight}  ·  next out ${yard_clock(CLOCK_START + next.def.departs)}` : 'a freight’s pulling out!', cx, 52);
     }
 
     ctx.restore();

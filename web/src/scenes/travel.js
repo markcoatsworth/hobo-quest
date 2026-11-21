@@ -13,7 +13,7 @@ import { rail_leg_days, rail_leg_miles, rail_scenery_at } from '../systems/rail.
 import { MapScene } from './map.js';
 import { TitleScene } from './title.js';
 import { PauseMenu } from '../ui/pause.js';
-import { drawPartyRow } from '../ui/party.js';
+import { drawStatusPlate } from '../ui/status.js';
 
 const VIEW_H = 450; // scenery above, status panel below
 const HORIZON = 285;
@@ -135,7 +135,7 @@ export class TravelScene {
       return;
     }
 
-    this.hurrying = input.down('confirm');
+    this.hurrying = input.down('act');
     const rate = this.hurrying ? HURRY : 1;
     this.elapsed += dt * rate;
 
@@ -236,7 +236,7 @@ export class TravelScene {
     ctx.restore();
 
     this.drawPanel(ctx, weather);
-    drawPartyRow(ctx, this.journey, 24, 40, { r: 20, t: this.t });
+    drawStatusPlate(ctx, this.journey, { title: `Bound for ${LOCATIONS[this.to].name}`, t: this.t, day: this.day });
     if (this.paused) this.paused.draw(ctx);
   }
 
@@ -678,7 +678,7 @@ export class TravelScene {
       ctx,
       this.game.input,
       [
-        ['confirm', this.hurrying ? 'Hurrying…' : 'Hold to hurry'],
+        ['act', this.hurrying ? 'Hurrying…' : 'Hold to hurry'],
         ['pause', 'Stop'],
       ],
       W - 24,

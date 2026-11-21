@@ -10,3 +10,8 @@ export function dateOf(day) {
 export function formatDate(day) {
   return dateOf(day).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
+
+/** "Apr 9, 1932": for the status plate, where room is short. */
+export function formatDateShort(day) {
+  return dateOf(day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}

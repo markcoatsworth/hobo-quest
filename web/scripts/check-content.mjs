@@ -8,6 +8,7 @@ import { LOCATIONS } from '../src/locations/index.js';
 import { CUTSCENES } from '../src/cutscenes/index.js';
 import { PLAYLISTS, TRACKS } from '../src/music/index.js';
 import { ITEMS } from '../src/items/index.js';
+import { CHARACTERS } from '../src/characters/index.js';
 import { rail_check } from '../src/systems/rail.js';
 
 const problems = rail_check();
@@ -23,6 +24,19 @@ for (const loc of Object.values(LOCATIONS)) {
     for (const prop of area?.props ?? []) {
       if (prop.take && !ITEMS[prop.take]) problems.push(`${loc.id} area "${id}": ${prop.name} holds "${prop.take}", which isn't an item`);
       if (prop.take && !prop.id) problems.push(`${loc.id} area "${id}": ${prop.name} holds an item but has no id`);
+    }
+    // People: someone who joins is a real character, and every line has
+    // something to say, by someone real.
+    for (const npc of area?.npcs ?? []) {
+      const who = `${loc.id} area "${id}": ${npc.name ?? npc.id}`;
+      if (npc.joins && !CHARACTERS[npc.joins]) problems.push(`${who} joins as "${npc.joins}", which isn't a character`);
+      if (npc.character && !CHARACTERS[npc.character]) problems.push(`${who} is "${npc.character}", which isn't a character`);
+      if (!npc.joins && (!npc.name || !npc.look)) problems.push(`${who}: needs a name and a look`);
+      for (const line of npc.lines ?? []) {
+        if (typeof line === 'string') continue;
+        if (!line?.text) problems.push(`${who}: a line with no text`);
+        else if (!CHARACTERS[line.by]) problems.push(`${who}: a line by "${line.by}", who isn't a character`);
+      }
     }
   }
 }
@@ -48,6 +62,16 @@ for (const loc of Object.values(LOCATIONS)) {
     // of the train runs on past the north fence.
     if (!(t.open >= 1 && t.open <= 5)) problems.push(`${where}: open door on car ${t.open}; it has to be on cars 1 to 5, inside the yard`);
     if (t.card != null && !(t.card >= 1 && t.card <= 5)) problems.push(`${where}: card on car ${t.card}; it has to be on cars 1 to 5, inside the yard`);
+  }
+  // Someone met in the yard is a real character, with something to say.
+  if (yard.meet) {
+    const m = yard.meet;
+    const who = `${loc.id} yard, meet`;
+    if (!CHARACTERS[m.joins]) problems.push(`${who}: joins as "${m.joins}", which isn't a character`);
+    if (!m.lines?.length) problems.push(`${who}: no lines`);
+    for (const line of m.lines ?? []) {
+      if (typeof line === 'object' && (!line.text || !CHARACTERS[line.by])) problems.push(`${who}: a line by "${line.by}" that isn't a character's, or has no text`);
+    }
   }
   // A clue that teaches the notebook names a track with a freight, and a real city.
   for (const clue of yard.clues ?? []) {
