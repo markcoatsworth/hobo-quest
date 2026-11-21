@@ -16,6 +16,12 @@ On WSL the phone link needs Windows to forward port 5174 into WSL. If it doesn't
 forwarding is stale, since WSL's address changes when Windows restarts), `npm run dev` prints
 the one-time Administrator PowerShell commands to fix it (see `vite.config.js`).
 
+To start somewhere other than the title screen, add `location` (and optionally `area`) to the
+address, e.g. `http://localhost:5174/?location=kansas_city&area=yard`. `area` is `map` (the
+default), `town`, `yard`, or one of the location's areas (`family_home`, `family_home_house`).
+The journey is made up to match: the shortest way there by rail from New York. See
+`src/start.js`.
+
 ## The game so far
 
 Title → opening cutscene → the family home → New York → yard → ride → map → (town) → yard → … → Los Angeles.
@@ -150,6 +156,7 @@ force touch mode (e.g. with the browser's device emulation), `?touch=0` to force
 ## Layout
 
 - `src/main.js`: boot, game loop, scaling, mouse
+- `src/start.js`: starting at a location from the URL (`?location=...&area=...`)
 - `src/core/`: input, menu widget, button prompts, title backdrop, saves, settings, music, RNG
 - `src/ui/`: the pause menu, the Settings panel, the corner buttons
 - `src/touch/`: phones and tablets only (detection, landscape, on-screen controls)

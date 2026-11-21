@@ -8,6 +8,7 @@ import { CornerButtons, toggleMute } from './ui/corner.js';
 import { SettingsPanel } from './ui/settings.js';
 import { PartyScreen, party_row_hit, party_row_reset } from './ui/party.js';
 import { isTouchDevice } from './touch/detect.js';
+import { startFromUrl } from './start.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -171,6 +172,7 @@ Promise.race([
     setupTouch(game, canvas);
     resize();
   }
-  game.setScene(new TitleScene(game));
+  // ?location=...&area=... starts straight there (src/start.js); otherwise the title.
+  game.setScene(startFromUrl(game) ?? new TitleScene(game));
   requestAnimationFrame(frame);
 });
