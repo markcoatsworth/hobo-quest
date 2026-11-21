@@ -18,12 +18,16 @@ import { inventory_add } from '../systems/inventory.js';
 import { party_has } from '../systems/party.js';
 import { CHARACTERS } from '../characters/index.js';
 import { drawStatusPlate } from '../ui/status.js';
+import { CLOCK_RATE, clock_hour, clock_now, clock_pass } from '../systems/clock.js';
+import { DARKEST, sky_dark, sky_town } from '../art/sky.js';
+import { drawMoonInSky } from '../art/moon.js';
 import { dialog_open } from '../ui/dialog.js';
 import { YardScene } from './yard.js';
 
 const BASE = 540; // where building fronts meet the sidewalk
 const FEET = 572; // where people stand
 const FAR_PARALLAX = 0.35;
+const MOON_HORIZON = 250; // where the moon's arc meets the town (about the rooftops)
 const WALK = 190;
 const RUN = 300;
 const REACH = 46; // how close you need to be to talk or go in
@@ -106,6 +110,8 @@ export class AreaScene {
       else if (choice === 'title') this.game.setScene(new TitleScene(this.game));
       return;
     }
+    // The clock runs, slowly, while you're about town (src/systems/clock.js).
+    clock_pass(this.journey, dt * CLOCK_RATE.area);
     if (this.notice) this.notice.t -= dt;
 
     if (this.place) {
@@ -219,26 +225,45 @@ export class AreaScene {
   // ------------------------------------------------------------------ draw
 
   draw(ctx) {
-    const view = { camX: this.camX, W, H, base: BASE, t: this.t };
     const town = this.town;
+    // The sky and the light by the clock: the town's own sky by day, the
+    // shared one through dusk, night and dawn (src/art/sky.js).
+    const hour = clock_hour(clock_now(this.journey));
+    const sky = sky_town(this.sky, hour);
+    const dark = sky_dark(hour) / DARKEST;
+    const view = { camX: this.camX, W, H, base: BASE, t: this.t, hour, dark };
+    LIGHTS.length = 0;
 
-    if (town.draw?.backdrop) {
-      // The area draws its own world: sky, ground and all.
-      town.draw.backdrop(ctx, view);
-    } else if (town.interior) {
-      drawInterior(ctx, town.interior, this.camX);
-    } else {
-      // Sky.
+    // How dark it is here: indoors, half as dark as out.
+    const night = town.interior ? dark * 0.5 : dark;
+    const openSky = !town.draw?.backdrop && !town.interior;
+    if (openSky) {
+      // The sky, already its night colour after dark, and the moon in it,
+      // rising and setting as on the rails (src/art/moon.js). Its horizon is
+      // about the rooftops, so it crosses the open sky above the street,
+      // only slipping behind the tallest buildings as it rises and sets.
       const g = ctx.createLinearGradient(0, 0, 0, BASE);
-      g.addColorStop(0, this.sky.top);
-      g.addColorStop(1, this.sky.bottom);
+      g.addColorStop(0, sky.top);
+      g.addColorStop(1, sky.bottom);
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, W, H);
+      drawMoonInSky(ctx, clock_now(this.journey), { horizon: MOON_HORIZON, width: W, height: MOON_HORIZON - 70 });
+    }
 
+    // The street: on a layer of its own after dark, so the night can darken
+    // it without darkening the sky and the moon behind it.
+    const back = night > 0.01 ? layer(ctx, 'back') : ctx;
+    if (town.draw?.backdrop) {
+      // The area draws its own world: sky, ground and all.
+      town.draw.backdrop(back, view);
+    } else if (town.interior) {
+      drawInterior(back, town.interior, this.camX);
+    } else {
+      const ctx = back; // the far skyline and the ground go on the street's layer
       // Far silhouettes.
       ctx.save();
       ctx.translate(-this.camX * FAR_PARALLAX, 0);
-      ctx.fillStyle = this.sky.far;
+      ctx.fillStyle = sky.far;
       for (const s of town.far ?? []) drawFarShape(ctx, s);
       ctx.restore();
       town.draw?.far?.(ctx, view);
@@ -267,41 +292,63 @@ export class AreaScene {
       }
     }
 
-    // Buildings.
-    ctx.save();
-    ctx.translate(-this.camX, 0);
-    for (const b of town.buildings ?? []) {
-      if (b.x + b.w < this.camX - 20 || b.x > this.camX + W + 20) continue;
-      drawBuilding(ctx, b, this.sky.lit, this.focus?.type === 'place' && this.focus.id === b.place);
+    // Buildings: walls and windows (their signs go in front, below).
+    back.save();
+    back.translate(-this.camX, 0);
+    const showing = (town.buildings ?? []).filter((b) => b.x + b.w >= this.camX - 20 && b.x <= this.camX + W + 20);
+    for (const b of showing) drawBuilding(back, b, sky.lit);
+    back.restore();
+
+    // Night falls over the street, which goes over the sky; then its
+    // windows light up. In front of them, on a layer of its own that
+    // darkens with the night too, everything else: signs, lamps, props and
+    // people.
+    if (back !== ctx) {
+      darken(back, night);
+      lay(ctx, back);
     }
-    for (const x of town.lamps ?? []) drawLamp(ctx, x, this.sky.lit);
-    if (town.yardSign != null) drawYardSign(ctx, town.yardSign, this.yardOpen);
-    for (const exit of town.exits ?? []) if (exit.sign) drawSignpost(ctx, exit.x, exit.sign);
+    if (night > 0.01) lightWindows(ctx, night, this.camX);
+    const front = night > 0.01 ? layer(ctx, 'front') : ctx;
+
+    const out = front; // the front layer from here on
+    out.save();
+    out.translate(-this.camX, 0);
+    for (const b of showing) drawBuildingSign(out, b, this.focus?.type === 'place' && this.focus.id === b.place);
+    for (const x of town.lamps ?? []) drawLamp(out, x, sky.lit);
+    if (town.yardSign != null) drawYardSign(out, town.yardSign, this.yardOpen);
+    for (const exit of town.exits ?? []) if (exit.sign) drawSignpost(out, exit.x, exit.sign);
     for (const prop of town.props ?? []) {
-      if (prop.x > this.camX - 200 && prop.x < this.camX + W + 200) drawProp(ctx, prop, this.focus?.prop === prop, prop.take && this.taken(prop));
+      if (prop.x > this.camX - 200 && prop.x < this.camX + W + 200) drawProp(out, prop, this.focus?.prop === prop, prop.take && this.taken(prop));
     }
-    ctx.restore();
-    town.draw?.street?.(ctx, view);
+    out.restore();
+    town.draw?.street?.(out, view);
 
     // People.
-    ctx.save();
-    ctx.translate(-this.camX, 0);
+    out.save();
+    out.translate(-this.camX, 0);
     const person = town.draw?.person;
     for (const npc of this.here()) {
       const facing = this.player.x < npc.x ? -1 : 1;
-      if (person) person(ctx, { x: npc.x, feet: this.feet, look: npc.look, facing, step: 0, t: this.t });
-      else drawPerson(ctx, npc.x, this.feet, npc.look, facing, 0, this.t);
+      if (person) person(out, { x: npc.x, feet: this.feet, look: npc.look, facing, step: 0, t: this.t });
+      else drawPerson(out, npc.x, this.feet, npc.look, facing, 0, this.t);
     }
     const p = this.player;
-    if (person) person(ctx, { x: p.x, feet: this.feet, facing: p.facing, step: p.step, t: this.t, player: true });
-    else drawPerson(ctx, p.x, this.feet, HOBO, p.facing, p.step, this.t, true);
+    if (person) person(out, { x: p.x, feet: this.feet, facing: p.facing, step: p.step, t: this.t, player: true });
+    else drawPerson(out, p.x, this.feet, HOBO, p.facing, p.step, this.t, true);
+    out.restore();
+    town.draw?.over?.(out, view);
+    // The front layer takes the night too, and goes on over the street; then
+    // the lamplight falls on both.
+    if (out !== ctx) finishFront(ctx, out, night, this.camX);
+
+    // What you're about to do, over everything, night or not.
     if (this.focus && !this.game.overlay && !this.place) {
+      ctx.save();
+      ctx.translate(-this.camX, 0);
       ctx.globalAlpha = this.hud;
       bubble(ctx, this.focus.verb, p.x, this.feet - (town.figureHeight ?? 110), this.camX);
-      ctx.globalAlpha = 1;
+      ctx.restore();
     }
-    ctx.restore();
-    town.draw?.over?.(ctx, view);
 
     // Status top left (src/ui/status.js): who, where, when; it opens the journal.
     drawStatusPlate(ctx, this.journey, { title: this.town.name ?? this.location.name, t: this.t, alpha: this.hud });
@@ -433,17 +480,23 @@ function drawFarShape(ctx, { shape, x, w, h }) {
   ctx.fill();
 }
 
-function drawBuilding(ctx, b, lit, focused) {
+/** A building's sign, if it has one: drawn on the front layer, in front of the lit windows. */
+function drawBuildingSign(ctx, b, focused) {
+  if (!b.sign) return;
+  signBoard(ctx, b.sign, b.x + b.w / 2, b.roof === 'gate' ? BASE - 182 : BASE - 84, focused);
+}
+
+/** A building's walls, roof, windows and door; its sign is drawBuildingSign. */
+function drawBuilding(ctx, b, lit) {
   const top = BASE - b.h;
   const door = b.x + b.w / 2;
 
   if (b.roof === 'gate') {
-    // An open place (park, market, alley): two posts and an arch with the sign.
+    // An open place (park, market, alley): two posts and an arch for the sign.
     ctx.fillStyle = shade(b.wall, -0.25);
     ctx.fillRect(b.x + 10, BASE - 150, 16, 150);
     ctx.fillRect(b.x + b.w - 26, BASE - 150, 16, 150);
     ctx.fillRect(b.x + 6, BASE - 160, b.w - 12, 14);
-    if (b.sign) signBoard(ctx, b.sign, door, BASE - 182, focused);
     return;
   }
 
@@ -474,6 +527,7 @@ function drawBuilding(ctx, b, lit, focused) {
       const on = lit && (row + c * 2 + Math.round(b.x / 10)) % 3 !== 0;
       ctx.fillStyle = on ? '#e8c070' : shade(b.wall, -0.45);
       ctx.fillRect(wx, y, 26, 34);
+      if (on) LIGHTS.push({ x: wx, y, w: 26, h: 34, color: '#e8c070' });
       ctx.fillStyle = shade(b.wall, -0.2);
       ctx.fillRect(wx - 3, y + 34, 32, 4);
     }
@@ -486,8 +540,11 @@ function drawBuilding(ctx, b, lit, focused) {
     ctx.fillStyle = lit ? '#d8b070' : shade(b.wall, 0.25);
     ctx.fillRect(b.x + 14, BASE - 60, door - 30 - b.x - 14, 38);
     ctx.fillRect(door + 30, BASE - 60, b.x + b.w - 14 - door - 30, 38);
+    if (lit) {
+      LIGHTS.push({ x: b.x + 14, y: BASE - 60, w: door - 30 - b.x - 14, h: 38, color: '#d8b070' });
+      LIGHTS.push({ x: door + 30, y: BASE - 60, w: b.x + b.w - 14 - door - 30, h: 38, color: '#d8b070' });
+    }
   }
-  if (b.sign) signBoard(ctx, b.sign, door, BASE - 84, focused);
 }
 
 function signBoard(ctx, text, x, y, focused) {
@@ -506,6 +563,89 @@ function signBoard(ctx, text, x, y, focused) {
   ctx.restore();
 }
 
+// Lit windows and lamps drawn this frame (world x), to shine again once
+// the night's laid over the street.
+const LIGHTS = [];
+
+/** Light the street's windows and shop fronts back up, after dark (dark: 0 by day, 1 at night). */
+function lightWindows(ctx, dark, camX) {
+  ctx.save();
+  ctx.translate(-camX, 0);
+  ctx.globalAlpha = Math.min(1, dark * 1.2);
+  for (const l of LIGHTS) {
+    if (l.lamp != null) continue;
+    ctx.fillStyle = l.color;
+    ctx.fillRect(l.x, l.y, l.w, l.h);
+  }
+  ctx.restore();
+}
+
+// After dark a town is drawn in layers (the sky, the street, then what's in
+// front of the street), so the night can darken each without the next:
+// the street without the sky and moon, people and signs without the lit
+// windows behind them.
+const layers = {};
+
+/** A clear layer, the size of the screen and drawn the same way, or ctx itself where there's no canvas to be had. */
+function layer(ctx, name) {
+  if (typeof document === 'undefined' || !ctx.canvas || !ctx.getTransform) return ctx;
+  const c = (layers[name] ??= document.createElement('canvas'));
+  const { width, height } = ctx.canvas;
+  if (c.width !== width || c.height !== height) {
+    c.width = width;
+    c.height = height;
+  }
+  const f = c.getContext('2d');
+  f.setTransform(1, 0, 0, 1, 0, 0);
+  f.clearRect(0, 0, width, height);
+  f.setTransform(ctx.getTransform());
+  return f;
+}
+
+/** Darken what's on a layer (and only that) for the night. */
+function darken(f, dark) {
+  f.save();
+  f.setTransform(1, 0, 0, 1, 0, 0);
+  f.globalCompositeOperation = 'source-atop';
+  f.fillStyle = `rgba(11, 14, 34, ${dark * 0.72})`;
+  f.fillRect(0, 0, f.canvas.width, f.canvas.height);
+  f.restore();
+}
+
+/** Lay a layer over what's drawn so far. */
+function lay(ctx, f) {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(f.canvas, 0, 0);
+  ctx.restore();
+}
+
+/** Darken the front layer for the night, light its lamps, lay it over the street, then the lamplight over both. */
+function finishFront(ctx, f, dark, camX) {
+  darken(f, dark);
+  f.save();
+  f.translate(-camX, 0);
+  f.fillStyle = '#ffe2a0';
+  for (const l of LIGHTS) if (l.lamp != null) f.fillRect(l.lamp - 7, BASE - 172, 14, 16);
+  f.restore();
+
+  lay(ctx, f);
+
+  // A pool of light round each lamp, on the post, the pavement and anyone under it.
+  ctx.save();
+  ctx.translate(-camX, 0);
+  ctx.globalCompositeOperation = 'lighter';
+  for (const l of LIGHTS) {
+    if (l.lamp == null) continue;
+    const g = ctx.createRadialGradient(l.lamp, BASE - 164, 4, l.lamp, BASE - 100, 170);
+    g.addColorStop(0, `rgba(255, 210, 140, ${0.42 * dark})`);
+    g.addColorStop(1, 'rgba(255, 210, 140, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(l.lamp - 170, BASE - 270, 340, 330);
+  }
+  ctx.restore();
+}
+
 function drawLamp(ctx, x, lit) {
   ctx.fillStyle = '#2a2624';
   ctx.fillRect(x - 3, BASE - 150, 6, 170);
@@ -513,6 +653,7 @@ function drawLamp(ctx, x, lit) {
   ctx.fillStyle = lit ? '#ffe2a0' : '#8a8478';
   ctx.fillRect(x - 7, BASE - 172, 14, 16);
   if (lit) {
+    LIGHTS.push({ lamp: x });
     const g = ctx.createRadialGradient(x, BASE - 164, 4, x, BASE - 164, 90);
     g.addColorStop(0, 'rgba(255, 220, 150, 0.35)');
     g.addColorStop(1, 'rgba(255, 220, 150, 0)');

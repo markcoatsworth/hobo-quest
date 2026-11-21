@@ -17,6 +17,7 @@
 import { COLORS, FONTS } from '../core/screen.js';
 import { formatDateShort } from '../core/calendar.js';
 import { money_format } from '../systems/money.js';
+import { clock_format, clock_now, MINUTES_PER_DAY } from '../systems/clock.js';
 import { drawPortrait } from './party.js';
 
 const X = 14;
@@ -60,12 +61,15 @@ export function status_hit(px, py) {
 /**
  * Draw the plate. title: where you are ("Kansas City", "Kansas City Yard",
  * "Bound for Dallas"). alpha: for screens that fade their header in.
- * day: the date to show, when the screen keeps its own (the ride).
+ * at: the moment to show (minutes, src/systems/clock.js), when the screen
+ * keeps its own clock (the ride).
  */
-export function drawStatusPlate(ctx, journey, { title, t = 0, alpha = 1, day = journey.day }) {
+export function drawStatusPlate(ctx, journey, { title, t = 0, alpha = 1, at = clock_now(journey) }) {
   const hot = hovering; // the mouse is over the journal button
   const party = journey.party ?? [];
-  const line2 = `${formatDateShort(day)}  ·  ${money_format(journey.money)}`;
+  // The date and the time together, then the money.
+  const day = Math.floor(at / MINUTES_PER_DAY) + 1;
+  const line2 = `${formatDateShort(day)}, ${clock_format(at % MINUTES_PER_DAY)}  ·  ${money_format(journey.money)}`;
 
   ctx.save();
   ctx.globalAlpha = alpha;

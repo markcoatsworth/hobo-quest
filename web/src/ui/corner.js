@@ -7,6 +7,7 @@ import { settings_get, settings_set } from '../core/settings.js';
 import { W } from '../core/screen.js';
 
 const R = 19; // button radius
+const MUTED_LINE = 3; // the ring and the slash, when muted
 const Y = 32;
 const BUTTONS = [
   { id: 'mute', x: W - 94 },
@@ -46,12 +47,16 @@ export class CornerButtons {
       ctx.beginPath();
       ctx.arc(b.x, Y, R, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = hot ? 'rgba(242, 184, 102, 0.9)' : 'rgba(244, 230, 200, 0.35)';
-      ctx.lineWidth = 1.5;
+      const edge = hot ? 'rgba(242, 184, 102, 0.9)' : 'rgba(244, 230, 200, 0.35)';
+      const slashed = b.id === 'mute' && muted;
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = slashed ? MUTED_LINE : 1.5;
       ctx.stroke();
       const ink = hot ? '#f2b866' : 'rgba(244, 230, 200, 0.85)';
-      if (b.id === 'mute') drawSpeaker(ctx, b.x, Y, ink, muted);
-      else drawGear(ctx, b.x, Y, ink);
+      if (b.id === 'mute') {
+        drawSpeaker(ctx, b.x, Y, ink);
+        if (slashed) drawSlash(ctx, b.x, Y, edge);
+      } else drawGear(ctx, b.x, Y, ink);
     }
     ctx.restore();
   }
@@ -64,7 +69,7 @@ export function toggleMute(game) {
   game.toast = { text: muted ? 'Music muted' : 'Music on', t: 1.6 };
 }
 
-function drawSpeaker(ctx, x, y, ink, muted) {
+function drawSpeaker(ctx, x, y, ink) {
   ctx.fillStyle = ink;
   ctx.beginPath();
   ctx.moveTo(x - 10, y - 4);
@@ -83,15 +88,26 @@ function drawSpeaker(ctx, x, y, ink, muted) {
   ctx.moveTo(x + 3 + 10 * Math.cos(-0.8), y + 10 * Math.sin(-0.8));
   ctx.arc(x + 3, y, 10, -0.8, 0.8);
   ctx.stroke();
-  if (muted) {
-    // A "no" slash straight across the button.
-    const d = R * 0.72;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(x - d, y - d);
-    ctx.lineTo(x + d, y + d);
-    ctx.stroke();
-  }
+}
+
+/**
+ * Muted: a "no" slash across the button, in its ring's colour and weight,
+ * from edge to edge and clipped inside the ring so it never pokes past it.
+ */
+function drawSlash(ctx, x, y, color) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, R - MUTED_LINE / 2, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = MUTED_LINE;
+  ctx.lineCap = 'butt';
+  const d = R / Math.SQRT2; // the ring, on the diagonal
+  ctx.beginPath();
+  ctx.moveTo(x - d, y - d);
+  ctx.lineTo(x + d, y + d);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawGear(ctx, x, y, ink) {

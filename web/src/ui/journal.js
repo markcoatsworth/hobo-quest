@@ -1,6 +1,6 @@
 // Scout's journal: one screen with tabs, for everything you look at rather
-// than do. Opened from the status plate (click or tap it), I or Tab, Y on a
-// controller, or Journal in the pause menu, wherever there's a journey on.
+// than do. Opened from the status plate (click or tap it), I or Tab, or Y on
+// a controller, wherever there's a journey on.
 //
 //   Party      who's with you, how hungry, what they carry (src/ui/party.js)
 //   Map        the rail network, to look at only: no travelling from here
@@ -17,6 +17,7 @@ import { LOCATIONS } from '../locations/index.js';
 import { rail_leg_days } from '../systems/rail.js';
 import { panel } from '../scenes/title.js';
 import { yard_clock, yard_known } from '../scenes/yard.js';
+import { clock_yard_every } from '../systems/clock.js';
 import { PartyTab } from './party.js';
 import { drawRailMap, MAP_SRC_W, MAP_SRC_H } from './railmap.js';
 import { drawBook } from './status.js';
@@ -33,7 +34,6 @@ const TAB_H = 42;
 // The page under the tabs.
 const PAGE = { x: BOX.x + 24, y: BOX.y + 78, w: BOX.w - 48, h: BOX.h - 100 };
 
-const CLOCK_START = 21 * 60; // the yard clock starts at 9 p.m. (src/scenes/yard.js)
 
 export class Journal {
   constructor(game, journey, { tab = 'party', member = null } = {}) {
@@ -219,9 +219,12 @@ export class Journal {
         else if (plate) lines.push([`Track ${t.track}: engine No. ${plate}, bound for ?`]);
       }
       if (n.board) {
-        lines.push(['The board in the office window:', true]);
+        // What it says, as a timetable: each runs every so often, round the clock.
+        const every = clock_yard_every(yard);
+        const often = every % 60 ? `${every} min` : every === 60 ? 'hour' : `${every / 60} hours`;
+        lines.push([`The office board (every ${often}):`, true]);
         for (const t of [...trains].sort((a, b) => a.def.departs - b.def.departs)) {
-          lines.push([`  No. ${t.number}  ${LOCATIONS[t.def.to].name}  ${yard_clock(CLOCK_START + t.def.departs)}`, true]);
+          lines.push([`  No. ${t.number}  ${LOCATIONS[t.def.to].name}  from ${yard_clock(t.def.departs)}`, true]);
         }
       }
       if (lines.length) entries.push({ city, lines });

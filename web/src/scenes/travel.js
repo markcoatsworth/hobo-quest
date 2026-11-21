@@ -14,21 +14,16 @@ import { MapScene } from './map.js';
 import { TitleScene } from './title.js';
 import { PauseMenu } from '../ui/pause.js';
 import { drawStatusPlate } from '../ui/status.js';
+import { CLOCK_RATE, clock_arrival, clock_format, clock_hour, clock_now, clock_set, MINUTES_PER_DAY } from '../systems/clock.js';
+import { mix, sky_colors, sky_dark, sky_sun } from '../art/sky.js';
+import { drawMoonInSky } from '../art/moon.js';
 
 const VIEW_H = 450; // scenery above, status panel below
 const HORIZON = 285;
 const RAIL_Y = 392;
 
-// Every ride lasts 13–18 real seconds, however many days it covers: a
-// one-day hop takes the minimum, the longest legs (5 days) the maximum.
-const RIDE_MIN = 13;
-const RIDE_MAX = 18;
-const LONGEST_LEG_DAYS = 5;
-const HURRY = 5; // speed-up while confirm is held
+const HURRY = 5; // speed-up while Space (A) is held
 const SCROLL = 300; // ground px per second of trip time (at normal speed)
-const START_TOD = 0.9; // you board at night
-const MOONRISE = 0.8; // time of day the moon comes up (0 = dawn), just before sunset
-const MOON_SPAN = 0.3; // how long it's up: sets a little after dawn
 const LOOK = 0.5; // parallax used to place region changes on the far hills and ground
 
 const TRAIN_X = 170; // locomotive's front
@@ -45,26 +40,6 @@ const REGIONS = {
   groves: { far: '#8a8f9a', farStyle: 'ridges', ground: '#a7a067', mid: ['orange', 'orange', 'palm', 'orange', 'house'] },
 };
 const REGION_NAMES = Object.keys(REGIONS);
-
-// Sky colours through the day (0 = dawn): [time, top, horizon].
-const SKY = [
-  [0.0, '#46426e', '#f0a46c'],
-  [0.12, '#6f9bcf', '#d9e8ee'],
-  [0.7, '#6a96cc', '#e1e7dc'],
-  [0.82, '#4a3b63', '#ec8a52'],
-  [0.9, '#121630', '#2c2e4c'],
-  [1.0, '#46426e', '#f0a46c'],
-];
-// How dark the land is: [time, darkness 0–1].
-const DARK = [
-  [0.0, 0.3],
-  [0.1, 0],
-  [0.74, 0],
-  [0.84, 0.35],
-  [0.9, 0.62],
-  [0.97, 0.55],
-  [1.0, 0.3],
-];
 
 export class TravelScene {
   constructor(game, journey) {
@@ -83,11 +58,16 @@ export class TravelScene {
     }
     this.milesBefore = this.stopMiles[this.stops.length - 2];
     this.routeMiles = this.stopMiles[this.stops.length - 1];
-    this.startDay = journey.day;
+    // On the clock (src/systems/clock.js): from when the freight pulled out
+    // (or, for a save from before the clock, now) to 7 a.m. at the far end.
+    this.departs = journey.riding.departs ?? clock_now(journey);
+    this.arrives = clock_arrival(this.departs, this.days);
     this.seed = hashString(`${this.from}-${this.to}`);
 
-    this.duration =
-      RIDE_MIN + ((RIDE_MAX - RIDE_MIN) * Math.min(1, (this.days - 1) / (LONGEST_LEG_DAYS - 1)));
+    // Real seconds for the leg, at the train's pace on the clock (an hour a
+    // second): a one-day hop about 24, Kansas City to Los Angeles about two
+    // minutes, five times quicker held at a hurry.
+    this.duration = (this.arrives - this.departs) / CLOCK_RATE.ride;
     this.length = this.duration * SCROLL; // ground px for the whole leg
     this.elapsed = 0; // trip seconds
     this.t = 0; // real seconds, for animation
@@ -106,14 +86,14 @@ export class TravelScene {
     return Math.min(1, this.elapsed / this.duration);
   }
 
-  /** Time of day, 0 = dawn. */
-  get tod() {
-    return (START_TOD + this.progress * this.days) % 1;
+  /** The clock right now: minutes since the journey began. */
+  get now() {
+    return this.departs + this.progress * (this.arrives - this.departs);
   }
 
   /** Journey day number right now. */
   get day() {
-    return this.startDay + Math.floor(START_TOD + this.progress * this.days);
+    return Math.floor(this.now / MINUTES_PER_DAY) + 1;
   }
 
   /** Ground scrolled so far, in px. */
@@ -156,7 +136,7 @@ export class TravelScene {
     if (this.progress >= 1 && !this.arrived) {
       this.arrived = true;
       const j = this.journey;
-      j.day = this.startDay + this.days;
+      clock_set(j, this.arrives);
       j.at = this.to;
       j.trail.push(this.to);
       j.riding = null;
@@ -204,8 +184,8 @@ export class TravelScene {
   // --------------------------------------------------------------- draw
 
   draw(ctx) {
-    const tod = this.tod;
-    const dark = curve(DARK, tod);
+    const hour = clock_hour(this.now);
+    const dark = sky_dark(hour);
     const weather = this.weather(this.day);
 
     ctx.save();
@@ -213,7 +193,7 @@ export class TravelScene {
     ctx.rect(0, 0, W, VIEW_H);
     ctx.clip();
 
-    this.drawSky(ctx, tod, weather);
+    this.drawSky(ctx, hour, weather);
     this.drawFar(ctx);
     this.drawGround(ctx);
     this.drawRiver(ctx);
@@ -236,12 +216,12 @@ export class TravelScene {
     ctx.restore();
 
     this.drawPanel(ctx, weather);
-    drawStatusPlate(ctx, this.journey, { title: `Bound for ${LOCATIONS[this.to].name}`, t: this.t, day: this.day });
+    drawStatusPlate(ctx, this.journey, { title: `Bound for ${LOCATIONS[this.to].name}`, t: this.t, at: this.now });
     if (this.paused) this.paused.draw(ctx);
   }
 
-  drawSky(ctx, tod, weather) {
-    const [top, bottom] = skyAt(tod);
+  drawSky(ctx, hour, weather) {
+    const [top, bottom] = sky_colors(hour);
     const g = ctx.createLinearGradient(0, 0, 0, HORIZON);
     g.addColorStop(0, weather === 'Rain' ? mix(top, '#5a5f6a', 0.6) : weather === 'Cloudy' ? mix(top, '#8a9098', 0.35) : top);
     g.addColorStop(1, weather === 'Rain' ? mix(bottom, '#8a8f96', 0.6) : bottom);
@@ -250,7 +230,7 @@ export class TravelScene {
 
     // Stars and moon at night; the sun by day. West is left, so both rise
     // behind the train (right) and set ahead of it.
-    const night = curve(DARK, tod);
+    const night = sky_dark(hour);
     if (night > 0.3 && weather !== 'Rain') {
       const r = seeded(7);
       ctx.fillStyle = '#f4ecd6';
@@ -260,31 +240,11 @@ export class TravelScene {
       }
       ctx.globalAlpha = 1;
     }
-    // The moon crosses the sky from moonrise to moonset, wrapping past
-    // midnight (time of day 1 → 0).
-    const moonT = (tod - MOONRISE + 1) % 1;
-    if (moonT < MOON_SPAN && weather !== 'Rain') {
-      const k = moonT / MOON_SPAN;
-      const mx = W + 40 - k * (W + 80);
-      const my = HORIZON - Math.sin(Math.PI * k) * 220;
-      const glow = ctx.createRadialGradient(mx, my, 10, mx, my, 90);
-      glow.addColorStop(0, 'rgba(230, 230, 210, 0.35)');
-      glow.addColorStop(1, 'rgba(230, 230, 210, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(mx - 90, my - 90, 180, 180);
-      ctx.fillStyle = '#efe9d4';
-      ctx.beginPath();
-      ctx.arc(mx, my, 22, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(160, 155, 140, 0.45)'; // the man in the moon
-      for (const [dx, dy, r] of [[-7, -5, 6], [6, -8, 4], [4, 6, 7], [-8, 9, 3]]) {
-        ctx.beginPath();
-        ctx.arc(mx + dx, my + dy, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    if (tod < 0.86 && weather !== 'Rain') {
-      const k = tod / 0.86;
+    // The moon, in its phase, on its way across (src/art/moon.js).
+    if (weather !== 'Rain') drawMoonInSky(ctx, this.now, { horizon: HORIZON, width: W });
+    const sun = sky_sun(hour);
+    if (sun !== null && weather !== 'Rain') {
+      const k = sun;
       const sx = W - k * W;
       const sy = HORIZON - Math.sin(Math.PI * k) * 230;
       const glow = ctx.createRadialGradient(sx, sy, 10, sx, sy, 120);
@@ -649,7 +609,7 @@ export class TravelScene {
 
     // Status, two columns.
     const rows = [
-      ['Date', formatDate(this.day)],
+      ['Date', `${formatDate(this.day)}, ${clock_format(this.now % MINUTES_PER_DAY)}`],
       ['Weather', weather],
       ['Next stop', LOCATIONS[this.to].name],
     ];
@@ -1017,47 +977,4 @@ function blob(ctx, x, y, r) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
-}
-
-// ------------------------------------------------------------ colour helpers
-
-function curve(keys, t) {
-  for (let i = 1; i < keys.length; i++) {
-    if (t <= keys[i][0]) {
-      const [t0, a] = keys[i - 1];
-      const [t1, b] = keys[i];
-      return a + ((b - a) * (t - t0)) / (t1 - t0);
-    }
-  }
-  return keys[keys.length - 1][1];
-}
-
-function skyAt(t) {
-  for (let i = 1; i < SKY.length; i++) {
-    if (t <= SKY[i][0]) {
-      const [t0, a1, a2] = SKY[i - 1];
-      const [t1, b1, b2] = SKY[i];
-      const k = (t - t0) / (t1 - t0);
-      return [mix(a1, b1, k), mix(a2, b2, k)];
-    }
-  }
-  return [SKY[0][1], SKY[0][2]];
-}
-
-const hexes = new Map();
-function rgb(c) {
-  if (c.startsWith('#')) {
-    if (!hexes.has(c)) hexes.set(c, [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)).concat(1));
-    return hexes.get(c);
-  }
-  const m = c.match(/[\d.]+/g).map(Number);
-  return [m[0], m[1], m[2], m[3] ?? 1];
-}
-
-/** Mix two colours (hex or rgba()), k = 0 gives a, 1 gives b. */
-function mix(a, b, k) {
-  const A = rgb(a);
-  const B = rgb(b);
-  const v = A.map((x, i) => x + (B[i] - x) * k);
-  return `rgba(${Math.round(v[0])}, ${Math.round(v[1])}, ${Math.round(v[2])}, ${v[3].toFixed(3)})`;
 }

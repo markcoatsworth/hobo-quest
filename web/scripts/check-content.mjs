@@ -9,6 +9,7 @@ import { CUTSCENES } from '../src/cutscenes/index.js';
 import { PLAYLISTS, TRACKS } from '../src/music/index.js';
 import { ITEMS } from '../src/items/index.js';
 import { CHARACTERS } from '../src/characters/index.js';
+import { clock_yard_every } from '../src/systems/clock.js';
 import { rail_check } from '../src/systems/rail.js';
 
 const problems = rail_check();
@@ -55,6 +56,9 @@ for (const loc of Object.values(LOCATIONS)) {
     else if (track < main && (yard.tracks[track - 1].cars || yard.tracks[track - 1].moving)) problems.push(`${where}: track ${track} isn't kept clear`);
     if (used.has(track)) problems.push(`${where}: another freight is already on track ${track}`);
     used.add(track);
+    // Its schedule: departs is minutes into each run of the yard's `every`.
+    const every = clock_yard_every(yard);
+    if (!(t.departs >= 0 && t.departs < every)) problems.push(`${where}: departs ${t.departs}; it has to be 0 to ${every - 1}, minutes into each ${every}-minute run`);
     if (!t.number) problems.push(`${where}: no engine number`);
     else if (numbers.has(t.number)) problems.push(`${where}: engine number ${t.number} used twice`);
     numbers.add(t.number);

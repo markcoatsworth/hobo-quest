@@ -1,5 +1,5 @@
-// A rail yard, seen from above. Start at the west fence, find out which of
-// tonight's freights goes where, and reach the open boxcar on the one you
+// A rail yard, seen from above, by day or night (src/systems/clock.js).
+// Start at the west fence, find out which of the waiting freights goes where, and reach the open boxcar on the one you
 // want before it pulls out. Bulls (railroad police) patrol with lanterns;
 // parked cars block their view, shunting cuts of cars will knock you flat.
 // A standing freight is a wall from fence to fence, but you can climb
@@ -31,6 +31,19 @@ import { TravelScene } from './travel.js';
 import { panel, TitleScene } from './title.js';
 import { PauseMenu } from '../ui/pause.js';
 import { drawStatusPlate } from '../ui/status.js';
+import {
+  CLOCK_RATE,
+  MINUTES_PER_DAY,
+  RELEASED,
+  clock_format,
+  clock_hour,
+  clock_next,
+  clock_next_departure,
+  clock_now,
+  clock_set,
+  clock_yard_every,
+} from '../systems/clock.js';
+import { DARKEST, mix, sky_dark } from '../art/sky.js';
 import { dialog_open } from '../ui/dialog.js';
 import { CHARACTERS } from '../characters/index.js';
 import { party_has } from '../systems/party.js';
@@ -53,7 +66,8 @@ const STAMINA_REGEN = 0.28;
 const BULL_R = 12;
 const BULL_PATROL = 62;
 const BULL_CHASE = 178;
-const VIEW_RANGE = 215;
+const VIEW_RANGE = 215; // at night, by lantern
+const DAY_SIGHT = 0.3; // how much further a bull sees by daylight
 const VIEW_HALF = 0.62; // radians either side of facing
 const HEAR_RANGE = 46; // notices you this close, whatever way he faces
 const CATCH_RANGE = 22;
@@ -79,18 +93,15 @@ const SLOT = CAR_L + CAR_GAP;
 const FIRST_SLOT_Y = TOP - 20;
 const CUT_PAUSE = 2.5; // seconds a shunting cut waits off-screen before coming back
 const BULL_WAIT = 2; // seconds a bull stands at each end of his beat
-const CLOCK_START = 21 * 60; // the yard clock starts at 9 p.m.; a second of play is a minute
+// The yard works around the clock; its clock runs at CLOCK_RATE.yard and
+// each freight leaves on a repeating schedule (src/systems/clock.js).
 const READ_RANGE = 38; // how close to a card, plate or window to read it
 const GATE_Y_SPAN = 46; // the town gate in the west fence, either side of where you come in
 const OFFICE_W = 80;
 const OFFICE_H = 56;
 
-/** The yard clock, a number of minutes after midnight, as "9:45 p.m." */
-export function yard_clock(minutes) {
-  const h = Math.floor(minutes / 60) % 24;
-  const m = Math.floor(minutes % 60);
-  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'a.m.' : 'p.m.'}`;
-}
+/** A minute of the day as "9:45 p.m." (clock_format, by its yard name). */
+export const yard_clock = clock_format;
 
 /**
  * What's in the notebook about a yard: { cards: { track: to }, plates: { track: number }, board }.
@@ -119,8 +130,14 @@ export class YardScene {
     this.to = null; // set by the train you board
     this.focus = null; // the thing within reach: a door, a card, a plate, the board
     this.notice = null; // what you just read: { title, lines, t }
-    this.t = 0;
+    this.t = 0; // seconds in the yard, for animation
     this.outcome = null; // 'boarded' | 'caught' | 'missed'
+
+    // The clock carries on from whenever Scout walks in (src/systems/clock.js);
+    // every freight here is made up for its next run.
+    this.start = clock_now(journey);
+    this.minutes = 0; // since walking in
+    this.every = clock_yard_every(this.layout);
     this.paused = null; // Menu while paused
     this.intro = 2.5; // seconds of title banner
 
@@ -156,6 +173,7 @@ export class YardScene {
       }
     }
 
+    // Each freight's next run.
     this.trains = this.layout.trains.map((def) => this.buildTrain(def));
     this.office = office ? { x: office.x - OFFICE_W / 2, y: office.y - OFFICE_H / 2, w: OFFICE_W, h: OFFICE_H } : null;
     // For the yard's own hooks: the fences, and anything solid they add.
@@ -227,7 +245,8 @@ export class YardScene {
       x,
       number: def.number,
       cars,
-      departIn: def.departs,
+      departAt: clock_next_departure(def.departs, this.every, this.start), // on the clock
+      departIn: clock_next_departure(def.departs, this.every, this.start) - this.start, // minutes from now
       speed: 0,
       openCar: cars[open],
       cardCar: def.card != null ? cars[def.card] : null,
@@ -270,6 +289,8 @@ export class YardScene {
     }
 
     this.t += dt;
+    this.minutes += dt * CLOCK_RATE.yard;
+    clock_set(this.journey, this.start + this.minutes);
     this.intro = Math.max(0, this.intro - dt);
     const blockers = this.blockers();
 
@@ -314,7 +335,7 @@ export class YardScene {
     const p = this.player;
     for (const train of this.trains) {
       if (train.gone) continue;
-      train.departIn -= dt;
+      train.departIn -= dt * CLOCK_RATE.yard;
       if (train.departIn > 0) continue;
       train.speed = Math.min(TRAIN_MAX, train.speed + TRAIN_ACCEL * dt);
       for (const car of train.cars) car.y += train.speed * dt;
@@ -457,9 +478,10 @@ export class YardScene {
       this.notice = { title: c.title, lines: c.lines, t: 1 };
     } else if (f.kind === 'board') {
       this.notes.board = true;
+      // Each freight's next run, gone or not.
       const lines = [...this.trains]
-        .sort((a, b) => a.def.departs - b.def.departs)
-        .map((t) => `No. ${t.number}   ${names(t.def.to)}   ${yard_clock(CLOCK_START + t.def.departs)}`);
+        .sort((a, b) => a.departAt - b.departAt)
+        .map((t) => `No. ${t.number}   ${names(t.def.to)}   ${yard_clock(t.departAt % MINUTES_PER_DAY)}`);
       this.notice = { title: 'The yard office board', lines, t: 1 };
     }
     // Pinned to what was read: it goes when you walk away from it.
@@ -468,8 +490,19 @@ export class YardScene {
   }
 
   /** Minutes on the yard clock now. */
+  /** How dark it is: 0 by day, 1 at night (src/art/sky.js). */
+  get night() {
+    return sky_dark(clock_hour(this.start + this.minutes)) / DARKEST;
+  }
+
+  /** How far a bull sees: by lantern at night, further by day. */
+  get viewRange() {
+    return VIEW_RANGE * (1 + DAY_SIGHT * (1 - this.night));
+  }
+
+  /** The time of day, in minutes after midnight. */
   get clock() {
-    return CLOCK_START + this.t;
+    return (this.start + this.minutes) % MINUTES_PER_DAY;
   }
 
   updateCuts(dt) {
@@ -533,7 +566,7 @@ export class YardScene {
 
     // Suspicion builds faster up close and when you're running.
     if (seen && b.state !== 'chase') {
-      const rate = 1.4 * (1.6 - dist / VIEW_RANGE) * (p.sprinting ? 1.6 : 1);
+      const rate = 1.4 * (1.6 - dist / this.viewRange) * (p.sprinting ? 1.6 : 1);
       b.alert = Math.min(1, b.alert + rate * dt);
       b.lastSeen = { x: p.x, y: p.y };
       if (b.alert >= 1) {
@@ -634,7 +667,7 @@ export class YardScene {
     const dx = p.x - b.x;
     const dy = p.y - b.y;
     const d = Math.hypot(dx, dy);
-    if (d > VIEW_RANGE) return false;
+    if (d > this.viewRange) return false;
     const inLight = Math.abs(angleDiff(Math.atan2(dy, dx), b.facing)) <= VIEW_HALF;
     // Behind him, he only notices you close up, and sooner if you're running.
     const heard = d < (p.sprinting ? HEAR_RANGE : HEAR_RANGE * 0.6);
@@ -650,21 +683,23 @@ export class YardScene {
     if (outcome === 'boarded') {
       this.boarded = train;
       this.to = train.def.to;
-      j.riding = { from: this.from, to: this.to };
+      // The ride runs from when this freight pulls out (src/scenes/travel.js).
+      j.riding = { from: this.from, to: this.to, departs: train.departAt };
       saveJourney(j);
     } else if (outcome === 'caught') {
-      j.day += 1;
+      // A night in the lockup: out at 7 in the morning.
+      clock_set(j, clock_next(clock_now(j), RELEASED));
       j.arrests += 1;
       this.game.input.rumble(400, 1, 1);
     } else if (outcome === 'missed') {
-      j.day += 1;
+      // More are made up for their next runs, next time you come in.
       j.missed += 1;
     }
     if (outcome !== 'boarded') {
       saveJourney(j);
       this.outcomeMenu = new Menu(
         [
-          { id: 'retry', label: 'Try Again Tomorrow' },
+          { id: 'retry', label: 'Try Again' },
           { id: 'map', label: 'Back to the Map' },
         ],
         { x: W / 2, y: 420, rowH: 52, width: 360, fontSize: 26 },
@@ -709,11 +744,12 @@ export class YardScene {
     this.drawDoorMarkers(ctx);
     if (this.office) drawOffice(ctx, this.office);
 
-    // Night falls over everything but the lanterns.
-    ctx.fillStyle = 'rgba(8, 10, 24, 0.42)';
+    // Dark by the clock, over everything but the lanterns and lit windows.
+    const night = this.night;
+    ctx.fillStyle = `rgba(8, 10, 24, ${0.42 * night})`;
     ctx.fillRect(0, 0, W, H);
-    for (const b of this.bulls) this.drawCone(ctx, b, blockers);
-    if (this.office) drawOfficeGlow(ctx, this.office);
+    for (const b of this.bulls) this.drawCone(ctx, b, blockers, night);
+    if (this.office && night > 0.05) drawOfficeGlow(ctx, this.office, night);
     this.drawDoorGlows(ctx);
     this.drawSmoke(ctx);
 
@@ -735,7 +771,8 @@ export class YardScene {
   }
 
   drawGround(ctx) {
-    ctx.fillStyle = '#2d2622';
+    // Cinders: darker by night (before the dark comes over them), lighter by day.
+    ctx.fillStyle = mix('#4e453c', '#2d2622', this.night);
     ctx.fillRect(0, 0, W, H);
     // Cinder speckle: a fixed texture, the same in every yard.
     const r = seeded(1932);
@@ -746,7 +783,7 @@ export class YardScene {
   }
 
   drawFences(ctx) {
-    ctx.fillStyle = '#16110f';
+    ctx.fillStyle = mix('#3a302a', '#16110f', this.night);
     ctx.fillRect(0, 0, W, TOP);
     ctx.fillRect(0, BOTTOM, W, H - BOTTOM);
     ctx.strokeStyle = '#5a4c40';
@@ -864,18 +901,25 @@ export class YardScene {
     ctx.restore();
   }
 
-  drawCone(ctx, b, blockers) {
-    // Lantern light, cut short where cars block it.
+  /** What a bull can see, cut short where cars block it: lantern light at night, a pale wedge by day. */
+  drawCone(ctx, b, blockers, night) {
     const rays = 28;
+    const range = this.viewRange;
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, TOP, W, BOTTOM - TOP);
     ctx.clip();
-    ctx.globalCompositeOperation = 'lighter';
-    const color = b.state === 'chase' ? '255, 90, 60' : b.alert > 0 ? '255, 190, 80' : '255, 215, 140';
-    const grad = ctx.createRadialGradient(b.x, b.y, 4, b.x, b.y, VIEW_RANGE);
-    grad.addColorStop(0, `rgba(${color}, 0.32)`);
-    grad.addColorStop(1, `rgba(${color}, 0.02)`);
+    const grad = ctx.createRadialGradient(b.x, b.y, 4, b.x, b.y, range);
+    if (night > 0.5) {
+      ctx.globalCompositeOperation = 'lighter';
+      const color = b.state === 'chase' ? '255, 90, 60' : b.alert > 0 ? '255, 190, 80' : '255, 215, 140';
+      grad.addColorStop(0, `rgba(${color}, ${0.32 * night})`);
+      grad.addColorStop(1, `rgba(${color}, 0.02)`);
+    } else {
+      const color = b.state === 'chase' ? '255, 120, 90' : b.alert > 0 ? '255, 215, 130' : '255, 250, 235';
+      grad.addColorStop(0, `rgba(${color}, ${0.24 * (1 - night) + 0.1})`);
+      grad.addColorStop(1, `rgba(${color}, 0.04)`);
+    }
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.moveTo(b.x, b.y);
@@ -883,7 +927,7 @@ export class YardScene {
       const a = b.facing - VIEW_HALF + (i / rays) * VIEW_HALF * 2;
       const dx = Math.cos(a);
       const dy = Math.sin(a);
-      let len = VIEW_RANGE;
+      let len = range;
       for (const r of blockers) {
         const hit = rayRect(b.x, b.y, dx, dy, r);
         if (hit !== null && hit < len) len = hit;
@@ -1037,8 +1081,8 @@ export class YardScene {
       ctx.font = `15px ${FONTS.body}`;
       ctx.fillStyle = next.departIn <= 10 ? '#ff9a6a' : 'rgba(244, 230, 200, 0.7)';
       const left = this.trains.filter((t) => !t.gone).length;
-      const tonight = `${left} ${left === 1 ? 'freight' : 'freights'} tonight`;
-      ctx.fillText(next.departIn > 0 ? `${tonight}  ·  next out ${yard_clock(CLOCK_START + next.def.departs)}` : 'a freight’s pulling out!', cx, 52);
+      const tonight = `${left} ${left === 1 ? 'freight' : 'freights'} waiting`;
+      ctx.fillText(next.departIn > 0 ? `${tonight}  ·  next out ${yard_clock(next.departAt % MINUTES_PER_DAY)}` : 'a freight’s pulling out!', cx, 52);
     }
 
     ctx.restore();
@@ -1071,7 +1115,7 @@ export class YardScene {
     ctx.fillText('Cards on the cars, engine numbers and the board in the', W / 2, 348);
     ctx.fillText('yard office window tell where each one is bound.', W / 2, 374);
     ctx.fillStyle = 'rgba(244, 230, 200, 0.7)';
-    ctx.fillText('Keep out of the light. Climb between a standing freight’s cars to cross it.', W / 2, 410);
+    ctx.fillText(`${this.night > 0.5 ? 'Keep out of the lantern light' : 'Keep out of the bulls’ sight'}. Climb between a standing freight’s cars to cross it.`, W / 2, 410);
     ctx.restore();
   }
 
@@ -1080,14 +1124,19 @@ export class YardScene {
     const city = LOCATIONS[this.from].name;
     const text = {
       boarded: ['Aboard!', this.to ? `This one’s bound for ${LOCATIONS[this.to].name}.` : ''],
-      caught: ['Caught by the bull', `A night in the ${city} lockup. You lose a day.`],
-      missed: ['Missed them all', 'Every freight pulled out without you. More leave tomorrow night.'],
+      caught: ['Caught by the bull', `A night in the ${city} lockup. They let you out at 7 in the morning.`],
+      missed: ['Missed them all', 'Every freight pulled out without you. There’ll be more.'],
     }[o];
     ctx.fillStyle = o === 'boarded' ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, W, H);
-    const h = o === 'boarded' ? 140 : 260;
-    panel(ctx, W / 2 - 360, 250, 720, h, '#1c1212');
+    // The message wrapped to the panel; the panel (and the menu under it)
+    // as tall as it needs.
     ctx.save();
+    ctx.font = `20px ${FONTS.body}`;
+    const lines = wrapLines(ctx, text[1], OUTCOME_W - 80);
+    const below = (lines.length - 1) * OUTCOME_LINE; // extra height for every line past the first
+    const h = (o === 'boarded' ? 140 : 260) + below;
+    panel(ctx, W / 2 - OUTCOME_W / 2, 250, OUTCOME_W, h, '#1c1212');
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = o === 'boarded' ? COLORS.accent : '#ff8a6a';
@@ -1095,10 +1144,29 @@ export class YardScene {
     ctx.fillText(text[0], W / 2, 300);
     ctx.fillStyle = COLORS.cream;
     ctx.font = `20px ${FONTS.body}`;
-    ctx.fillText(text[1], W / 2, 350);
+    lines.forEach((line, i) => ctx.fillText(line, W / 2, 350 + i * OUTCOME_LINE));
     ctx.restore();
+    if (this.outcomeMenu) this.outcomeMenu.layout.y = 420 + below;
     if (o !== 'boarded' && this.outcomeT >= 0.6) this.outcomeMenu.draw(ctx, this.t);
   }
+}
+
+const OUTCOME_W = 720;
+const OUTCOME_LINE = 28;
+
+/** Words wrapped to lines no wider than maxW, in ctx's current font. */
+function wrapLines(ctx, text, maxW) {
+  const lines = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxW && line) {
+      lines.push(line);
+      line = word;
+    } else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
 function makeCar(letter, x, y) {
@@ -1228,13 +1296,13 @@ function drawOffice(ctx, o) {
   ctx.restore();
 }
 
-function drawOfficeGlow(ctx, o) {
+function drawOfficeGlow(ctx, o, night = 1) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   const cx = o.x + o.w + 4;
   const cy = o.y + o.h / 2;
   const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, 70);
-  g.addColorStop(0, 'rgba(240, 190, 100, 0.35)');
+  g.addColorStop(0, `rgba(240, 190, 100, ${0.35 * night})`);
   g.addColorStop(1, 'rgba(240, 190, 100, 0)');
   ctx.fillStyle = g;
   ctx.fillRect(cx - 70, cy - 70, 140, 140);

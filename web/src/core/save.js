@@ -10,10 +10,11 @@
 
 import { START_MONEY } from '../systems/money.js';
 import { party_new } from '../systems/party.js';
+import { DAY_STARTS } from '../systems/clock.js';
 
 const KEY = 'hobo-quest.save';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const START_CITY = 'new_york';
 export const GOAL_CITY = 'los_angeles';
 
@@ -21,9 +22,10 @@ export function newJourney() {
   return {
     version: SAVE_VERSION,
     at: START_CITY, // city id: where you are, or where you boarded if riding
-    riding: null, // { from, to } while aboard a freight
+    riding: null, // { from, to, departs } while aboard a freight (departs: minutes, src/systems/clock.js)
     trail: [START_CITY], // every city reached, in order (repeats and all)
-    day: 1,
+    day: 1, // 1 = April 4, 1932 (src/core/calendar.js)
+    time: DAY_STARTS, // minutes since midnight (src/systems/clock.js)
     arrests: 0,
     missed: 0, // trains missed
     money: START_MONEY, // cents, shared by the party (src/systems/money.js)
@@ -106,6 +108,11 @@ export function upgradeJourney(old) {
     const r = j.riding;
     const riding = r && NORTHERN_STOPS[`${r.from}>${r.to}`] ? { from: r.from, to: NORTHERN_STOPS[`${r.from}>${r.to}`] } : r;
     j = { ...j, version: 3, trail, riding };
+  }
+  if (j.version === 3) {
+    // Version 4 keeps the time of day: mid-morning, or on a freight, the
+    // night it left.
+    j = { ...j, version: 4, time: j.riding ? 22 * 60 : 8 * 60 };
   }
   // Fill in anything newer than the save itself.
   return { ...newJourney(), ...j };

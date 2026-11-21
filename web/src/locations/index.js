@@ -39,7 +39,10 @@
 //                        "Explore <name>"; other areas need one to be listed)
 //     width,             length of the main street in px (the screen is 1280)
 //     start,             where you walk in
-//     sky,               'day' | 'dusk' | 'night' | 'haze' | 'desert' | 'overcast'
+//     sky,               'day' | 'haze' | 'desert' | 'overcast' ('dusk' | 'night'):
+//                        how it looks by day. The clock does the rest: dusk,
+//                        night and dawn come over it in their turn
+//                        (src/art/sky.js), lamps and windows lighting up.
 //     ground?,           'street' (default) | 'dirt'
 //     facing?, camera?,  which way you face on arrival (1 right, -1 left), and
 //                        where the view starts (left edge, px)
@@ -114,21 +117,26 @@
 //                        at = where its lead end starts (y)
 //                        Car letters: B boxcar, b brown boxcar, R reefer,
 //                        T tank, G gondola, E switch engine.
-//     trains: [...],     the freights leaving tonight, all at once on their own
+//     trains: [...],     the freights that leave here, all waiting at once on their own
 //                        tracks: { to, track?, number, cars?, open, departs, card? }
 //                        to: the city it's bound for, joined to this one by a
 //                        line in src/rail/network.json; track: its track number
 //                        (default: the main line), a siding kept clear; number:
 //                        the engine's number, on its plate and on the office
 //                        board; cars: letters from the engine back; open: which
-//                        car (index) has its door open; departs: seconds until
-//                        it pulls out (each second is a minute on the yard
-//                        clock, from 9 p.m.); card: which car has a destination
+//                        car (index) has its door open; departs: its schedule,
+//                        minutes into each run of the yard's `every` (from
+//                        midnight): with every 120, departs 50 leaves at
+//                        12:50, 2:50, 4:50... round the clock. Walk in and
+//                        each is made up for its next run (src/systems/clock.js);
+//                        card: which car has a destination
 //                        card tacked on. Only cars 1 to 5 are inside the yard,
 //                        so the open door and the card go on those. Nothing on
 //                        screen says which train is which until Scout reads a
 //                        card, or the board and a plate. All checked by
 //                        `npm run check`.
+//     every?,            minutes between each freight's runs (default 120, or
+//                        60 for a yard with only one freight)
 //     bulls: [...],      { x, y, dir }: each walks the aisle at x
 //     meet?: { joins, x, y, lines, name?, look? }
 //                        someone waiting in the yard to join the party

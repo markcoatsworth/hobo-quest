@@ -19,7 +19,11 @@ the one-time Administrator PowerShell commands to fix it (see `vite.config.js`).
 To start somewhere other than the title screen, add `location` (and optionally `area`) to the
 address, e.g. `http://localhost:5174/?location=kansas_city&area=yard`. `area` is `map` (the
 default), `town`, `yard`, or one of the location's areas (`family_home`, `family_home_house`).
-The journey is made up to match: the shortest way there by rail from New York. See
+The journey is made up to match: the shortest way there by rail from New York, getting in on
+the 7 a.m. freight. Add `time` and `date` to start at a given moment, e.g. to see a town at
+sunset or at night: `?location=kansas_city&area=town&time=19:30`, or
+`&date=1932-04-20&time=22:00`. `time` is 24-hour (`19:30`, `21`) or with am/pm (`7:30pm`,
+`9pm`); `date` is `1932-04-20`, or `04-20` for 1932. On their own they start in New York. See
 `src/start.js`.
 
 ## The game so far
@@ -39,10 +43,29 @@ Title → opening cutscene → the family home → New York → yard → ride �
   Each location decides whether the map offers its yard directly (`yard.fromMap`): New York
   and Chicago make you walk through the city to the yard sign; smaller places let you go
   straight to the yard.
+- **Time** (`src/systems/clock.js`): the journey keeps the time of day as well as the date
+  (shown on the status plate), and the clock runs at a different speed by where you are:
+  slowest in towns and other areas (half a minute a second), faster in the yards (a minute a
+  second), fastest on the rails (an hour a second: a one-day hop about 24 seconds, the
+  five-day run to Los Angeles about two minutes). The map, menus, the journal and
+  conversations stop it, and nothing skips it ahead but a night in jail (out at 7 a.m.).
+  The yards work round the clock: each freight leaves every two hours (every hour in a yard
+  with just one), at its own minutes past, so walk in at any time and there's usually one
+  within the hour. A ride takes its line's days to the minute.
+- **The moon** (`src/systems/moon.js`, drawn by `src/art/moon.js`): its phase from the clock,
+  measured against a known full moon (10 p.m., April 20, 1932) and the 29.53-day lunar month,
+  how much of it is lit, and when it's up (it rises about 50 minutes later each day: a full
+  moon at sunset, a new moon with the sun). The journey opens two days before a new moon, so
+  the first nights out are near moonless. It crosses the sky on the ride and over the towns
+  alike, rising in the east (right) and setting behind the skyline in the west (left); anywhere
+  else with a sky can call `drawMoonInSky`. One sky through the day (`src/art/sky.js`) for the ride and the towns: a town's own
+  sky by day, then dusk, night with lamps and windows lit, and dawn.
 - **Ride** (`src/scenes/travel.js`): Oregon Trail-style travel screen. The freight runs west
-  through scenery that changes by region (per line in `src/rail/network.json`), with day and night,
-  weather, and a status panel: date (from April 4, 1932), weather, next stop, miles. Hold Space (A)
-  to hurry. Quitting mid-ride resumes at the start of that ride.
+  through scenery that changes by region (per line in `src/rail/network.json`), with weather
+  and a status panel: date and time, weather, next stop, miles. The ride runs on the clock,
+  from the minute the freight pulled out to the same minute its line's days later, so its
+  sunrises, sunsets and moon come at the right times. Hold Space (A) to hurry. Quitting mid-ride resumes at the
+  start of that ride.
 - **Areas** (`src/scenes/area.js`): every place you walk around side-on, indoors or out: each
   location's main street (`town`) and its other areas. Talk to people, look at things (props),
   step into places (stores, diners, missions, landmarks, future mini-games), take exits to
@@ -53,19 +76,21 @@ Title → opening cutscene → the family home → New York → yard → ride �
   are the same picture: the sheriff drives off and you're already playing.
 - **Yard** (`src/scenes/yard.js`, each city's own in `src/locations/<id>/yard.js`): cross the
   sidings from the west fence and get into an open boxcar before its freight pulls out. Tracks
-  are numbered from the west, the main line at the east fence last. Every freight leaving
-  tonight is there at once, each on its own track and leaving at its own time on the yard clock
-  (9 p.m. on, a minute a second), and nothing says which goes where. Sleuth it out: read a card
+  are numbered from the west, the main line at the east fence last. Every freight out of the
+  yard is there at once, each on its own track and made up for its next run on the clock (a
+  minute a second here), and nothing says which goes where. Sleuth it out: read a card
   tacked to a car (its destination), the board in the yard office window (each engine number,
   where it's bound, when it leaves), and an engine's number plate. What Scout learns is kept in
   a notebook (saved with the journey, so it's there after a night in jail) and shown under each
   track's number board. Engines about to leave are steaming. A standing freight is a wall from
   fence to fence, but Scout can climb across between two of its cars: it takes a moment, in
   plain view of any bull, and if the train starts to move mid-climb you're thrown clear and
-  stunned. Bulls patrol with lanterns: stay out of the light and use parked cars as cover.
-  Shunting cars, and freights pulling out, knock you down. Getting caught, or missing every
-  freight, costs a day. In the yard, Space (A on a controller) does things: hop on, climb,
-  read; Enter is for menus (and Space works there too). The only way back to town is on foot, through the gate in the west
+  stunned. Bulls patrol, with lanterns after dark: stay out of their sight and use parked cars
+  as cover. By day the yard is lit and they see further.
+  Shunting cars, and freights pulling out, knock you down. Getting caught means a night in
+  jail (out at 7 a.m.); missing every freight means trying again for the next ones. In the yard,
+  Space (A on a controller) does things: hop on, climb, read; Enter is for menus (and Space
+  works there too). The only way back to town is on foot, through the gate in the west
   fence where you came in, and not with a bull chasing you.
 - **Locations** (`src/locations/<id>/index.js`): one hand-written module per stop holding
   everything about it: map position, blurb, its areas (street layout, buildings, signs, places
@@ -119,7 +144,7 @@ Title → opening cutscene → the family home → New York → yard → ride �
 - **Journal** (`src/ui/journal.js`): one screen of tabs for things to look at rather than do.
   Party; Map, the rail network to look at only (where you are, the trail ridden, the lines
   out of here and their days; no travelling from it); Notebook, what Scout has read in each
-  rail yard. Open it from the status plate, with I / Tab / Y, or Journal in the pause menu;
+  rail yard. Open it from the status plate or with I / Tab / Y (it's not in the pause menu);
   Q / E (LB / RB) or a tap on a tab turns the page. The map is drawn by `src/ui/railmap.js`,
   shared with the map screen.
 - **Items** (`src/items/items.json`, plain JSON for GameMaker too): each has a name, a kind, an
@@ -148,7 +173,7 @@ Everything is driven by named actions (`src/core/input.js`), fed by both keyboar
 | tabs    | Q, E                | LB, RB                  |
 
 Pause opens the same menu everywhere you can pause (areas, the map, the yard, the ride):
-Resume, Journal, Settings, and the scene's own choices (Quit to Title). Settings
+Resume, Settings, and the scene's own choices (Quit to Title). Settings
 (music volume, mute, controller rumble, full screen) is also on the title screen and, for
 mouse players, behind the gear in the top-right corner beside a mute button. Those two
 buttons only show while the mouse is in use. Settings save in the browser, apart from the
