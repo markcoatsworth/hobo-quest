@@ -1,7 +1,17 @@
-// A rail yard, seen from above. Start at the west fence, cross the sidings
-// and reach the open boxcar on the departing freight on the far east track
-// before it pulls out. Bulls (railroad police) patrol with lanterns; parked
-// cars block their view, shunting cuts of cars will knock you flat.
+// A rail yard, seen from above. Start at the west fence, find out which of
+// tonight's freights goes where, and reach the open boxcar on the one you
+// want before it pulls out. Bulls (railroad police) patrol with lanterns;
+// parked cars block their view, shunting cuts of cars will knock you flat.
+// A standing freight is a wall from fence to fence, but you can climb
+// across between two of its cars: slowly, in plain view, and if it starts
+// to move while you're on the coupling, you're thrown clear.
+//
+// The tracks are numbered from the west, the main line at the east fence
+// last. Several freights leave at different times, and nothing says which
+// is which: a card tacked to a car gives its destination; the board in the
+// yard office window lists each engine number with where it's bound and
+// when; and an engine's number plate says which train is which. What Scout
+// learns goes in a notebook (journey.yardNotes), kept for next time.
 
 import { formatDate } from '../core/calendar.js';
 import { drawPrompts } from '../core/prompts.js';
@@ -10,6 +20,7 @@ import { saveJourney } from '../core/save.js';
 import { COLORS, FONTS, W, H } from '../core/screen.js';
 import { Menu } from '../core/menu.js';
 import { LOCATIONS } from '../locations/index.js';
+import { AreaScene } from './area.js';
 import { MapScene } from './map.js';
 import { TravelScene } from './travel.js';
 import { panel, TitleScene } from './title.js';
@@ -40,6 +51,8 @@ const HEAR_RANGE = 46; // notices you this close, whatever way he faces
 const CATCH_RANGE = 22;
 
 const HOP_RANGE = 34;
+const CLIMB_TIME = 1.4; // seconds to climb across a coupling between two cars
+const CLIMB_REACH = 24; // how close (up and down the train) to a coupling to climb it
 const TRAIN_ACCEL = 11; // px/s² once it departs
 const TRAIN_MAX = 95;
 
@@ -57,13 +70,34 @@ const SLOT = CAR_L + CAR_GAP;
 const FIRST_SLOT_Y = TOP - 20;
 const CUT_PAUSE = 2.5; // seconds a shunting cut waits off-screen before coming back
 const BULL_WAIT = 2; // seconds a bull stands at each end of his beat
+const CLOCK_START = 21 * 60; // the yard clock starts at 9 p.m.; a second of play is a minute
+const READ_RANGE = 38; // how close to a card, plate or window to read it
+const GATE_Y_SPAN = 46; // the town gate in the west fence, either side of where you come in
+const OFFICE_W = 80;
+const OFFICE_H = 56;
+
+/** The yard clock, a number of minutes after midnight, as "9:45 p.m." */
+export function yard_clock(minutes) {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = Math.floor(minutes % 60);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'a.m.' : 'p.m.'}`;
+}
 
 /**
- * The freight leaving a yard on a given day. One at a time for now: where a
- * yard lists several, each day brings the next in the list.
+ * What's in the notebook about a yard: { cards: { track: to }, plates: { track: number }, board }.
+ * `cards` holds every destination learned for a track.
  */
-export function todaysTrain(yard, day) {
-  return yard.trains[(day - 1) % yard.trains.length];
+export function yard_notes(journey, cityId) {
+  journey.yardNotes ??= {};
+  journey.yardNotes[cityId] ??= { cards: {}, plates: {}, board: false };
+  return journey.yardNotes[cityId];
+}
+
+/** Where a train is bound, as far as the notebook knows: { to, how } or null. */
+export function yard_known(notes, train) {
+  if (notes.cards[train.track]) return { to: notes.cards[train.track], how: 'card' };
+  if (notes.board && notes.plates[train.track] === train.number) return { to: train.def.to, how: 'board' };
+  return null;
 }
 
 export class YardScene {
@@ -72,8 +106,10 @@ export class YardScene {
     this.journey = journey;
     this.from = journey.at;
     this.layout = LOCATIONS[this.from].yard;
-    this.trainDef = todaysTrain(this.layout, journey.day);
-    this.to = this.trainDef.to;
+    this.notes = yard_notes(journey, this.from);
+    this.to = null; // set by the train you board
+    this.focus = null; // the thing within reach: a door, a card, a plate, the board
+    this.notice = null; // what you just read: { title, lines, t }
     this.t = 0;
     this.outcome = null; // 'boarded' | 'caught' | 'missed'
     this.paused = null; // Menu while paused
@@ -86,9 +122,10 @@ export class YardScene {
 
   /** Lay the yard out exactly as the city's module describes it. */
   build() {
-    const { tracks, bulls, player } = this.layout;
+    const { tracks, bulls, player, office } = this.layout;
 
-    this.trackXs = tracks.map((t) => t.x);
+    // Numbered from the west; the main line along the east fence comes last.
+    this.trackXs = [...tracks.map((t) => t.x), DEPART_X];
     this.parked = []; // static car rects
     this.cuts = []; // moving cuts of cars
     for (const track of tracks) {
@@ -103,14 +140,16 @@ export class YardScene {
           head: track.at,
           pause: 0,
         });
-      } else {
+      } else if (track.cars) {
         [...track.cars].forEach((c, j) => {
           if (c !== '.') this.parked.push(makeCar(c, track.x, FIRST_SLOT_Y + j * SLOT));
         });
       }
     }
 
-    this.buildTrain(this.trainDef, this.trainDef.departs);
+    this.trains = this.layout.trains.map((def) => this.buildTrain(def));
+    this.office = office ? { x: office.x - OFFICE_W / 2, y: office.y - OFFICE_H / 2, w: OFFICE_W, h: OFFICE_H } : null;
+    this.gateY = player; // the gate to town is where you came in
 
     this.bulls = bulls.map((b, i) => ({
       x: b.x,
@@ -144,23 +183,38 @@ export class YardScene {
     });
   }
 
-  buildTrain({ cars: letters = DEFAULT_TRAIN, open }, departs) {
+  buildTrain(def) {
     // A long freight heading south (down the screen), engine at the bottom,
     // the rest stretching north past the fence.
+    const { cars: letters = DEFAULT_TRAIN, open } = def;
+    const track = def.track ?? this.trackXs.length;
+    const x = this.trackXs[track - 1];
     const cars = [];
     let y = BOTTOM - 40;
     [...letters].forEach((c, i) => {
       if (i === 0) {
-        cars.push({ ...makeCar(c, DEPART_X, y), h: 120 });
+        cars.push({ ...makeCar(c, x, y), h: 120 });
         y -= CAR_GAP;
         return;
       }
       y -= SLOT;
-      const car = makeCar(i === open ? 'B' : c, DEPART_X, y);
+      const car = makeCar(i === open ? 'B' : c, x, y);
       if (i === open) car.open = true;
       cars.push(car);
     });
-    this.train = { cars, departIn: departs, speed: 0, offset: 0, openCar: cars[open] };
+    if (def.card != null) cars[def.card].card = true;
+    return {
+      def,
+      track,
+      x,
+      number: def.number,
+      cars,
+      departIn: def.departs,
+      speed: 0,
+      openCar: cars[open],
+      cardCar: def.card != null ? cars[def.card] : null,
+      gone: false,
+    };
   }
 
   // -------------------------------------------------------------- geometry
@@ -169,12 +223,13 @@ export class YardScene {
   blockers() {
     const list = this.parked.slice();
     for (const cut of this.cuts) list.push(...cut.cars);
-    for (const car of this.train.cars) list.push(car);
+    for (const train of this.trains) if (!train.gone) list.push(...train.cars);
+    if (this.office) list.push(this.office);
     return list;
   }
 
-  door() {
-    const car = this.train.openCar;
+  door(train) {
+    const car = train.openCar;
     return { x: car.x - 6, y: car.y + car.h / 2 };
   }
 
@@ -186,15 +241,12 @@ export class YardScene {
     if (this.paused) {
       const choice = this.paused.update(dt, input, pointer);
       if (choice === 'resume') this.paused = null;
-      else if (choice === 'map') this.game.setScene(new MapScene(this.game, this.journey));
       else if (choice === 'title') this.game.setScene(new TitleScene(this.game));
       return;
     }
     if (input.pressed('pause')) {
-      this.paused = new PauseMenu(this.game, [
-        { id: 'map', label: 'Back to the Map' },
-        { id: 'title', label: 'Quit to Title' },
-      ]);
+      // No way out from here: back to town is through the gate, on foot.
+      this.paused = new PauseMenu(this.game, [{ id: 'title', label: 'Quit to Title' }]);
       return;
     }
 
@@ -202,26 +254,181 @@ export class YardScene {
     this.intro = Math.max(0, this.intro - dt);
     const blockers = this.blockers();
 
-    this.updateTrain(dt);
+    this.updateTrains(dt);
     this.updateCuts(dt);
-    this.updatePlayer(dt, input, blockers);
+    if (this.climb) this.updateClimb(dt);
+    else this.updatePlayer(dt, input, blockers);
     for (const bull of this.bulls) this.updateBull(bull, dt, blockers);
+    if (this.notice) {
+      // Something read stays up while you're there, and fades once you step away.
+      const at = this.notice.at;
+      if (at && Math.hypot(this.player.x - at.x, this.player.y - at.y) <= at.range) this.notice.t = Math.max(this.notice.t, 0.5);
+      else if (at) this.notice.t = Math.min(this.notice.t, 0.5);
+      this.notice.t -= dt;
+    }
     if (this.outcome) return;
 
-    // Boarding.
-    const d = this.door();
-    this.canHop = Math.hypot(this.player.x - d.x, this.player.y - d.y) < HOP_RANGE && this.player.stun <= 0;
-    if (this.canHop && input.pressed('confirm')) this.finish('boarded');
-    else if (d.y > BOTTOM + 30) this.finish('missed');
+    // Every freight gone without you.
+    if (this.trains.every((t) => t.gone)) return this.finish('missed');
+
+    // Whatever's in reach: hop aboard, or read something.
+    this.focus = this.climb ? null : this.nearest();
+    this.canHop = this.focus?.kind === 'hop';
+    // Space on a keyboard (A on a controller): Enter is for menus.
+    if (this.focus && input.pressed('act')) this.act(this.focus);
   }
 
-  updateTrain(dt) {
-    const train = this.train;
-    train.departIn -= dt;
-    if (train.departIn > 0) return;
-    train.speed = Math.min(TRAIN_MAX, train.speed + TRAIN_ACCEL * dt);
-    for (const car of train.cars) car.y += train.speed * dt;
-    train.offset += train.speed * dt;
+  updateTrains(dt) {
+    const p = this.player;
+    for (const train of this.trains) {
+      if (train.gone) continue;
+      train.departIn -= dt;
+      if (train.departIn > 0) continue;
+      train.speed = Math.min(TRAIN_MAX, train.speed + TRAIN_ACCEL * dt);
+      for (const car of train.cars) car.y += train.speed * dt;
+      // Out of the yard once its open door has gone past the south fence.
+      if (train.openCar.y > BOTTOM + 30) train.gone = true;
+      // A train pulling out shoves anyone standing on its track.
+      for (const car of train.cars) {
+        if (circleRect(p.x, p.y, PLAYER_R, car)) {
+          p.x = p.x < train.x ? car.x - PLAYER_R - 2 : car.x + car.w + PLAYER_R + 2;
+          if (p.stun <= 0) {
+            p.stun = 0.9;
+            this.game.input.rumble(200, 0.8, 0.6);
+          }
+        }
+      }
+    }
+  }
+
+  // ------------------------------------------------------------- climbing
+
+  /**
+   * The couplings of standing freights you could climb across from here:
+   * between two cars, inside the fences, with clear ground on the far side.
+   */
+  couplings(blockers) {
+    const p = this.player;
+    const reach = CAR_W / 2 + PLAYER_R + 8;
+    const out = [];
+    for (const train of this.trains) {
+      if (train.gone || train.departIn <= 0 || Math.abs(p.x - train.x) > reach) continue;
+      const side = p.x < train.x ? -1 : 1;
+      const landX = train.x - side * (CAR_W / 2 + PLAYER_R + 3);
+      for (let i = 0; i < train.cars.length - 1; i++) {
+        const below = train.cars[i];
+        const above = train.cars[i + 1];
+        const y = (below.y + above.y + above.h) / 2;
+        if (y < TOP + PLAYER_R + 4 || y > BOTTOM - PLAYER_R - 4) continue;
+        if (blockers.some((r) => circleRect(landX, y, PLAYER_R, r))) continue;
+        out.push({ train, x: train.x + side * (CAR_W / 2 + PLAYER_R), y, landX });
+      }
+    }
+    return out;
+  }
+
+  /** On the coupling: across in CLIMB_TIME, unless the train moves first. */
+  updateClimb(dt) {
+    const c = this.climb;
+    const p = this.player;
+    c.t += dt;
+    if (c.train.departIn <= 0) {
+      // She's moving: thrown back off the coupling where you came from.
+      p.x = c.fromX;
+      p.y = c.y;
+      p.stun = 1.4;
+      this.climb = null;
+      this.game.input.rumble(300, 1, 0.8);
+      this.notice = { title: 'Thrown clear', lines: ['The freight lurched as you climbed. Back where you started.'], t: 3 };
+      return;
+    }
+    const k = Math.min(1, c.t / CLIMB_TIME);
+    p.x = c.fromX + (c.landX - c.fromX) * k;
+    p.y = c.y;
+    p.step += dt * 6;
+    if (k >= 1) this.climb = null;
+  }
+
+  // ------------------------------------------------------------- sleuthing
+
+  /** The closest thing in reach: an open door to hop, a card, a plate, the office window. */
+  nearest() {
+    const p = this.player;
+    if (p.stun > 0) return null;
+    const options = [];
+    for (const train of this.trains) {
+      if (train.gone) continue;
+      const d = this.door(train);
+      options.push({ kind: 'hop', train, x: d.x, y: d.y, range: HOP_RANGE, verb: 'Hop on' });
+      if (train.cardCar) {
+        const c = train.cardCar;
+        options.push({ kind: 'card', train, x: c.x - 10, y: c.y + 26, range: READ_RANGE, verb: 'Read the card' });
+      }
+      // The engine's number plate, on the bit of it inside the yard.
+      const engine = train.cars[0];
+      if (engine.y < BOTTOM - 10) options.push({ kind: 'plate', train, x: engine.x - 10, y: Math.min(engine.y + 24, BOTTOM - 20), range: READ_RANGE, verb: 'Read the engine number' });
+    }
+    // Couplings of standing freights, to climb across.
+    for (const c of this.couplings(this.blockers())) {
+      options.push({ kind: 'climb', coupling: c, x: c.x, y: c.y, range: CLIMB_REACH, verb: 'Climb between the cars' });
+    }
+    // The gate back to town, where you came in.
+    options.push({ kind: 'leave', x: 14, y: this.gateY, range: 34, verb: 'Back to town' });
+    if (this.office) {
+      const o = this.office;
+      options.push({ kind: 'board', x: o.x + o.w + 14, y: o.y + o.h / 2, range: READ_RANGE + 6, verb: 'Read the board' });
+    }
+    let best = null;
+    for (const o of options) {
+      const d = Math.hypot(p.x - o.x, p.y - o.y);
+      if (d > o.range) continue;
+      // Hopping on wins over reading, then whatever's closest.
+      const score = d - (o.kind === 'hop' ? 1000 : 0);
+      if (!best || score < best.score) best = { ...o, score };
+    }
+    return best;
+  }
+
+  /** Do the thing in reach: board, or read and note it down. */
+  act(f) {
+    const names = (id) => LOCATIONS[id].name;
+    if (f.kind === 'hop') return this.finish('boarded', f.train);
+    if (f.kind === 'leave') {
+      // Not with a bull on your heels: he'd follow you straight out.
+      if (this.bulls.some((b) => b.state === 'chase')) {
+        this.notice = { title: 'Not now', lines: ['There’s a bull on your heels.'], t: 2.5 };
+        return;
+      }
+      const town = LOCATIONS[this.from].town;
+      return this.game.setScene(new AreaScene(this.game, this.journey, this.from, 'town', { at: town.yardSign, facing: -1 }));
+    }
+    if (f.kind === 'climb') {
+      const c = f.coupling;
+      this.climb = { train: c.train, fromX: this.player.x, landX: c.landX, y: c.y, t: 0 };
+      this.focus = null;
+      return;
+    }
+    if (f.kind === 'card') {
+      this.notes.cards[f.train.track] = f.train.def.to;
+      this.notice = { title: `Track ${f.train.track}`, lines: [`A card tacked to the car: ${names(f.train.def.to).toUpperCase()}`], t: 1 };
+    } else if (f.kind === 'plate') {
+      this.notes.plates[f.train.track] = f.train.number;
+      this.notice = { title: `Track ${f.train.track}`, lines: [`Engine No. ${f.train.number}`], t: 1 };
+    } else if (f.kind === 'board') {
+      this.notes.board = true;
+      const lines = [...this.trains]
+        .sort((a, b) => a.def.departs - b.def.departs)
+        .map((t) => `No. ${t.number}   ${names(t.def.to)}   ${yard_clock(CLOCK_START + t.def.departs)}`);
+      this.notice = { title: 'The yard office board', lines, t: 1 };
+    }
+    // Pinned to what was read: it goes when you walk away from it.
+    this.notice.at = { x: f.x, y: f.y, range: f.range };
+    saveJourney(this.journey);
+  }
+
+  /** Minutes on the yard clock now. */
+  get clock() {
+    return CLOCK_START + this.t;
   }
 
   updateCuts(dt) {
@@ -335,7 +542,7 @@ export class YardScene {
         } else {
           b.lostFor += dt;
         }
-        const target = seen ? p : b.lastSeen;
+        const target = seen ? p : (b.lastSeen ?? p);
         const dx = target.x - b.x;
         const dy = target.y - b.y;
         const d = Math.hypot(dx, dy) || 1;
@@ -381,6 +588,8 @@ export class YardScene {
   }
 
   canSee(b, p, blockers) {
+    // Up on a coupling you're in plain view: only distance and the light matter.
+    if (this.climb) blockers = [];
     const dx = p.x - b.x;
     const dy = p.y - b.y;
     const d = Math.hypot(dx, dy);
@@ -392,12 +601,14 @@ export class YardScene {
     return !blockers.some((r) => segmentHitsRect(b.x, b.y, p.x, p.y, r));
   }
 
-  finish(outcome) {
+  finish(outcome, train = null) {
     if (this.outcome) return;
     const j = this.journey;
     this.outcome = outcome;
     this.outcomeT = 0;
     if (outcome === 'boarded') {
+      this.boarded = train;
+      this.to = train.def.to;
       j.riding = { from: this.from, to: this.to };
       saveJourney(j);
     } else if (outcome === 'caught') {
@@ -424,7 +635,8 @@ export class YardScene {
     this.outcomeT += dt;
     if (this.outcome === 'boarded') {
       // Let the train roll a moment, then ride it on the map.
-      for (const car of this.train.cars) car.y += Math.max(40, this.train.speed) * dt;
+      const train = this.boarded;
+      for (const car of train.cars) car.y += Math.max(40, train.speed) * dt;
       if (this.outcomeT > 1.6 || (this.outcomeT > 0.4 && input.pressed('confirm'))) {
         this.game.setScene(new TravelScene(this.game, this.journey));
       }
@@ -442,24 +654,37 @@ export class YardScene {
     const blockers = this.blockers();
     this.drawGround(ctx);
     for (const x of this.trackXs) drawTrack(ctx, x);
-    drawTrack(ctx, DEPART_X);
     this.drawFences(ctx);
+    drawTownGate(ctx, this.gateY);
 
     for (const car of this.parked) drawCar(ctx, car);
     for (const cut of this.cuts) for (const car of cut.cars) drawCar(ctx, car, cut.dir);
-    for (const car of this.train.cars) drawCar(ctx, car, 1);
-    this.drawDoorMarker(ctx);
+    for (const train of this.trains) {
+      if (train.gone && train !== this.boarded) continue;
+      for (const car of train.cars) drawCar(ctx, car, 1);
+      if (train.cardCar) drawCard(ctx, train.cardCar);
+    }
+    this.drawDoorMarkers(ctx);
+    if (this.office) drawOffice(ctx, this.office);
 
     // Night falls over everything but the lanterns.
     ctx.fillStyle = 'rgba(8, 10, 24, 0.42)';
     ctx.fillRect(0, 0, W, H);
     for (const b of this.bulls) this.drawCone(ctx, b, blockers);
-    this.drawDoorGlow(ctx);
+    if (this.office) drawOfficeGlow(ctx, this.office);
+    this.drawDoorGlows(ctx);
+    this.drawSmoke(ctx);
 
     this.drawPlayer(ctx);
     for (const b of this.bulls) this.drawBull(ctx, b);
+    // Over Scout's head, kept on screen by the fences.
+    const lx = Math.max(80, Math.min(W - 80, this.player.x));
+    if (this.climb) label(ctx, 'Climbing…', lx, this.player.y - 30, COLORS.cream, 15);
+    else if (this.focus && !this.outcome) label(ctx, this.focus.verb, lx, this.player.y - 30, COLORS.accent, 15);
 
+    this.drawTrackBoards(ctx);
     this.drawHud(ctx);
+    if (this.notice?.t > 0 && !this.outcome) this.drawNotice(ctx);
     if (this.intro > 0 && !this.outcome) this.drawIntro(ctx);
     if (this.paused) this.paused.draw(ctx);
     if (this.outcome) this.drawOutcome(ctx);
@@ -491,30 +716,107 @@ export class YardScene {
     }
   }
 
-  drawDoorMarker(ctx) {
-    if (this.outcome === 'boarded') return;
-    const car = this.train.openCar;
-    // The open door: a dark gap in the car's west side with lamplight inside.
-    ctx.fillStyle = '#e09a4a';
-    ctx.fillRect(car.x + 4, car.y + car.h / 2 - 20, car.w - 8, 40);
-    ctx.fillStyle = '#1a0f0a';
-    ctx.fillRect(car.x - 2, car.y + car.h / 2 - 20, 6, 40);
+  /** The open doors: a dark gap in each car's west side, lamplight inside. */
+  drawDoorMarkers(ctx) {
+    for (const train of this.trains) {
+      if (train.gone || this.outcome === 'boarded') continue;
+      const car = train.openCar;
+      ctx.fillStyle = '#e09a4a';
+      ctx.fillRect(car.x + 4, car.y + car.h / 2 - 20, car.w - 8, 40);
+      ctx.fillStyle = '#1a0f0a';
+      ctx.fillRect(car.x - 2, car.y + car.h / 2 - 20, 6, 40);
+    }
   }
 
-  drawDoorGlow(ctx) {
-    // A pulse over the open door, so the goal reads through the dark.
+  /** A pulse over each open door, so they read through the dark. */
+  drawDoorGlows(ctx) {
     if (this.outcome === 'boarded') return;
-    const car = this.train.openCar;
-    const cy = car.y + car.h / 2;
-    if (cy > BOTTOM) return;
     const pulse = (Math.sin(this.t * 4) + 1) / 2;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(car.x + car.w / 2, cy, 4, car.x + car.w / 2, cy, 46 + pulse * 10);
-    g.addColorStop(0, `rgba(240, 170, 80, ${0.35 + pulse * 0.2})`);
-    g.addColorStop(1, 'rgba(240, 170, 80, 0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(car.x - 60, cy - 70, car.w + 120, 140);
+    for (const train of this.trains) {
+      if (train.gone) continue;
+      const car = train.openCar;
+      const cy = car.y + car.h / 2;
+      if (cy > BOTTOM) continue;
+      const g = ctx.createRadialGradient(car.x + car.w / 2, cy, 4, car.x + car.w / 2, cy, 46 + pulse * 10);
+      g.addColorStop(0, `rgba(240, 170, 80, ${0.3 + pulse * 0.15})`);
+      g.addColorStop(1, 'rgba(240, 170, 80, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(car.x - 60, cy - 70, car.w + 120, 140);
+    }
+    ctx.restore();
+  }
+
+  /** Steam from engines about to leave: a clue in itself. Cold engines don't smoke. */
+  drawSmoke(ctx) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, TOP, W, BOTTOM - TOP);
+    ctx.clip();
+    for (const train of this.trains) {
+      if (train.gone || train.departIn > 15) continue;
+      const strength = Math.min(1, (15 - train.departIn) / 8);
+      const engine = train.cars[0];
+      for (let i = 0; i < 8; i++) {
+        const age = (this.t * 0.6 + i / 8) % 1;
+        ctx.fillStyle = `rgba(200, 200, 205, ${0.35 * (1 - age) * strength})`;
+        ctx.beginPath();
+        ctx.arc(engine.x + engine.w / 2 + Math.sin(i * 2.1 + this.t) * 8, Math.min(BOTTOM, engine.y + 60) - age * 70, 6 + age * 16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Track number boards along the north fence, and under each one, what the
+   * notebook knows about the freight on it: where it's bound, or its engine
+   * number, or a question mark.
+   */
+  drawTrackBoards(ctx) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    this.trackXs.forEach((x, i) => {
+      const n = i + 1;
+      ctx.fillStyle = '#d8ccb0';
+      ctx.fillRect(x - 11, TOP - 9, 22, 18);
+      ctx.fillStyle = '#1e1612';
+      ctx.font = `bold 13px ${FONTS.body}`;
+      ctx.fillText(String(n), x, TOP + 1);
+      const train = this.trains.find((t) => t.track === n && !t.gone);
+      if (!train) return;
+      const known = yard_known(this.notes, train);
+      const text = known ? LOCATIONS[known.to].name : this.notes.plates[n] ? `No. ${this.notes.plates[n]}` : '?';
+      ctx.font = `13px ${FONTS.body}`;
+      const w = ctx.measureText(text).width + 12;
+      ctx.fillStyle = 'rgba(16, 10, 10, 0.8)';
+      ctx.fillRect(x - w / 2, TOP + 12, w, 18);
+      ctx.fillStyle = known ? COLORS.accent : 'rgba(244, 230, 200, 0.75)';
+      ctx.fillText(text, x, TOP + 21);
+    });
+    ctx.restore();
+  }
+
+  /** What was just read: a card, a plate, the board. */
+  drawNotice(ctx) {
+    const n = this.notice;
+    const w = 520;
+    const h = 56 + n.lines.length * 26;
+    const x = W / 2 - w / 2;
+    const y = 96;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, n.t * 2);
+    panel(ctx, x, y, w, h, '#1c1212');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = COLORS.accent;
+    ctx.font = `20px ${FONTS.title}`;
+    ctx.fillText(n.title, W / 2, y + 28);
+    ctx.fillStyle = COLORS.cream;
+    ctx.font = `17px ${FONTS.body}`;
+    n.lines.forEach((line, k) => ctx.fillText(line, W / 2, y + 56 + k * 26));
     ctx.restore();
   }
 
@@ -601,13 +903,6 @@ export class YardScene {
       ctx.stroke();
     }
 
-    if (this.canHop && !this.outcome) {
-      const d = this.door();
-      ctx.save();
-      ctx.font = `bold 15px ${FONTS.body}`;
-      label(ctx, 'Hop on!', d.x - 40, d.y - 34, COLORS.accent);
-      ctx.restore();
-    }
   }
 
   drawBull(ctx, b) {
@@ -649,6 +944,7 @@ export class YardScene {
   drawHud(ctx) {
     ctx.save();
     ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
     // The party first, small, then the yard's name beside it.
     const tx = 24 + drawPartyRow(ctx, this.journey, 20, 38, { r: 16, t: this.t }) + 20;
     ctx.fillStyle = COLORS.cream;
@@ -656,19 +952,19 @@ export class YardScene {
     ctx.fillText(`${LOCATIONS[this.from].name} Yard`, tx, 26);
     ctx.font = `16px ${FONTS.body}`;
     ctx.fillStyle = 'rgba(244, 230, 200, 0.7)';
-    ctx.fillText(`${formatDate(this.journey.day)}  ·  Freight to ${LOCATIONS[this.to].name} on the east track`, tx, 52);
+    const n = this.trains.length;
+    ctx.fillText(`${formatDate(this.journey.day)}  ·  ${n} ${n === 1 ? 'freight' : 'freights'} leaving tonight`, tx, 52);
 
+    // The yard clock, and the next one out.
     ctx.textAlign = 'center';
-    const left = this.train.departIn;
-    if (left > 0) {
-      const s = Math.ceil(left);
-      ctx.fillStyle = s <= 10 ? '#ff9a6a' : COLORS.cream;
-      ctx.font = `26px ${FONTS.body}`;
-      ctx.fillText(`Departs in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`, W / 2, 36);
-    } else {
-      ctx.fillStyle = '#ff9a6a';
-      ctx.font = `26px ${FONTS.body}`;
-      ctx.fillText('She’s pulling out!', W / 2, 36);
+    ctx.fillStyle = COLORS.cream;
+    ctx.font = `26px ${FONTS.body}`;
+    ctx.fillText(yard_clock(this.clock), W / 2, 26);
+    const next = this.trains.filter((t) => !t.gone).sort((a, b) => a.departIn - b.departIn)[0];
+    if (next) {
+      ctx.font = `15px ${FONTS.body}`;
+      ctx.fillStyle = next.departIn <= 10 ? '#ff9a6a' : 'rgba(244, 230, 200, 0.7)';
+      ctx.fillText(next.departIn > 0 ? `next freight out ${yard_clock(CLOCK_START + next.def.departs)}` : 'a freight’s pulling out!', W / 2, 52);
     }
 
     ctx.restore();
@@ -678,7 +974,7 @@ export class YardScene {
       this.game.input,
       [
         ['sprint', 'Run'],
-        ['confirm', 'Hop on'],
+        ['act', this.focus?.verb ?? 'Act'],
         ['pause', 'Pause'],
       ],
       W - 24,
@@ -690,15 +986,18 @@ export class YardScene {
     const a = Math.min(1, this.intro);
     ctx.save();
     ctx.globalAlpha = a;
-    panel(ctx, W / 2 - 330, 270, 660, 150);
+    panel(ctx, W / 2 - 360, 250, 720, 190);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = COLORS.accent;
     ctx.font = `30px ${FONTS.title}`;
-    ctx.fillText('Get to the open boxcar', W / 2, 322);
+    ctx.fillText(this.trains.length > 1 ? 'Find your freight' : 'Get to the open boxcar', W / 2, 300);
     ctx.fillStyle = COLORS.cream;
-    ctx.font = `19px ${FONTS.body}`;
-    ctx.fillText('Keep out of the lantern light. Mind the moving cars.', W / 2, 370);
+    ctx.font = `18px ${FONTS.body}`;
+    ctx.fillText('Cards on the cars, engine numbers and the board in the', W / 2, 348);
+    ctx.fillText('yard office window tell where each one is bound.', W / 2, 374);
+    ctx.fillStyle = 'rgba(244, 230, 200, 0.7)';
+    ctx.fillText('Keep out of the light. Climb between a standing freight’s cars to cross it.', W / 2, 410);
     ctx.restore();
   }
 
@@ -706,9 +1005,9 @@ export class YardScene {
     const o = this.outcome;
     const city = LOCATIONS[this.from].name;
     const text = {
-      boarded: ['Aboard!', `Next stop, ${LOCATIONS[this.to].name}.`],
+      boarded: ['Aboard!', this.to ? `This one’s bound for ${LOCATIONS[this.to].name}.` : ''],
       caught: ['Caught by the bull', `A night in the ${city} lockup. You lose a day.`],
-      missed: ['Missed her', 'The freight pulled out without you. The next one leaves tomorrow.'],
+      missed: ['Missed them all', 'Every freight pulled out without you. More leave tomorrow night.'],
     }[o];
     ctx.fillStyle = o === 'boarded' ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, W, H);
@@ -800,6 +1099,71 @@ function drawCar(ctx, car, dir = 1) {
     ctx.fillStyle = 'rgba(0,0,0,0.35)'; // roof walk
     ctx.fillRect(x + w / 2 - 3, y, 6, h);
   }
+  ctx.restore();
+}
+
+/** The gate in the west fence, back to town. */
+function drawTownGate(ctx, y) {
+  ctx.save();
+  ctx.fillStyle = '#16110f';
+  ctx.fillRect(0, TOP, 6, y - GATE_Y_SPAN - TOP);
+  ctx.fillRect(0, y + GATE_Y_SPAN, 6, BOTTOM - y - GATE_Y_SPAN);
+  ctx.fillStyle = '#5a4c40';
+  ctx.fillRect(0, y - GATE_Y_SPAN - 4, 10, 8);
+  ctx.fillRect(0, y + GATE_Y_SPAN - 4, 10, 8);
+  ctx.translate(16, y - GATE_Y_SPAN - 18);
+  ctx.fillStyle = '#d8ccb0';
+  ctx.fillRect(-8, -9, 74, 18);
+  ctx.fillStyle = '#1e1612';
+  ctx.font = `bold 11px ${FONTS.body}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('← TO TOWN', -3, 1);
+  ctx.restore();
+}
+
+/** A destination card tacked to a car's west side. */
+function drawCard(ctx, car) {
+  if (car.y + 40 < TOP || car.y > BOTTOM) return;
+  ctx.fillStyle = '#ece4d0';
+  ctx.fillRect(car.x - 3, car.y + 18, 7, 16);
+  ctx.fillStyle = 'rgba(40, 30, 20, 0.7)';
+  ctx.fillRect(car.x - 2, car.y + 22, 5, 2);
+  ctx.fillRect(car.x - 2, car.y + 27, 5, 2);
+}
+
+/** The yard office: a shack with a lit window on its east side, the board inside. */
+function drawOffice(ctx, o) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(o.x + 5, o.y + 5, o.w, o.h);
+  ctx.fillStyle = '#5a4636';
+  ctx.fillRect(o.x, o.y, o.w, o.h);
+  ctx.fillStyle = '#3e3026'; // roof ridge, from above
+  ctx.fillRect(o.x, o.y + o.h / 2 - 3, o.w, 6);
+  ctx.fillStyle = '#2a2420';
+  ctx.fillRect(o.x - 3, o.y - 3, o.w + 6, 4);
+  ctx.fillRect(o.x - 3, o.y + o.h - 1, o.w + 6, 4);
+  ctx.fillStyle = '#f0c870'; // the window
+  ctx.fillRect(o.x + o.w - 3, o.y + 14, 5, o.h - 28);
+  ctx.fillStyle = '#d8ccb0';
+  ctx.font = `bold 10px ${FONTS.body}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('OFFICE', o.x + o.w / 2, o.y + 12);
+  ctx.restore();
+}
+
+function drawOfficeGlow(ctx, o) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const cx = o.x + o.w + 4;
+  const cy = o.y + o.h / 2;
+  const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, 70);
+  g.addColorStop(0, 'rgba(240, 190, 100, 0.35)');
+  g.addColorStop(1, 'rgba(240, 190, 100, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - 70, cy - 70, 140, 140);
   ctx.restore();
 }
 

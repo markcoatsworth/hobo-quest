@@ -192,7 +192,7 @@ export class TouchLayer {
       const verb = { npc: 'talk', prop: 'look', exit: 'door', place: 'door', yard: 'door' }[s.focus?.type];
       return { act: verb ?? 'hand', ready: !!verb, close: false };
     }
-    if (s instanceof YardScene) return { act: 'hand', ready: !!s.canHop, close: false };
+    if (s instanceof YardScene) return { act: s.focus && !['hop', 'climb'].includes(s.focus.kind) ? 'look' : 'hand', ready: !!s.focus, close: false };
     return { act: 'hand', ready: false, close: false };
   }
 
@@ -219,6 +219,7 @@ export class TouchLayer {
         if (mag >= RUN_AT) down.add('sprint');
       } else {
         down.add(BUTTONS[touch.control].action);
+        if (touch.control === 'a') down.add('act'); // the yard's own action
       }
     }
     // The stick also steps through menus, like a controller's.

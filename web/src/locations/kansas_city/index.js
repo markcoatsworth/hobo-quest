@@ -92,19 +92,20 @@ export default {
 
   yard: {
     player: 250,
+    office: { x: 548, y: 300 }, // the yard office, its board in the window
     tracks: [
       { x: 190, cars: 'RR.RRR' },
       { x: 333, moving: 'ERRR', speed: 70, dir: 1, at: 300 },
-      { x: 476, cars: 'B.BBTB' },
+      { x: 476 }, // kept clear for a departing freight
       { x: 620, moving: 'EBBB', speed: 95, dir: -1, at: 450 },
       { x: 763, cars: 'TT.BBR' },
-      { x: 906, cars: 'B.RB.B' },
+      { x: 906 }, // kept clear for a departing freight
       { x: 1050, moving: 'EBBGB', speed: 80, dir: 1, at: 0 },
     ],
     trains: [
-      { to: 'los_angeles', open: 4, departs: 55 },
-      { to: 'dallas', open: 4, departs: 55 },
-      { to: 'oklahoma_city', open: 3, departs: 50 },
+      { to: 'los_angeles', number: '3702', open: 4, departs: 50, card: 2 },
+      { to: 'dallas', track: 3, number: '1219', open: 5, departs: 75 },
+      { to: 'oklahoma_city', track: 6, number: '2864', open: 3, departs: 100, card: 5 },
     ],
     bulls: [
       { x: 1106, y: 300, dir: 1 },

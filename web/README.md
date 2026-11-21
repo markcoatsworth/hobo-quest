@@ -45,12 +45,22 @@ Title → opening cutscene → the family home → New York → yard → ride �
   road to the city at the far end. It draws itself with the opening cutscene's own art
   (`src/art/hudson.js`, shared by both), so the cutscene's last frame and the farmyard's first
   are the same picture: the sheriff drives off and you're already playing.
-- **Yard** (`src/scenes/yard.js`): cross the sidings from the west fence to the open boxcar on the
-  departing freight (east track) before it pulls out. A yard lists every freight that leaves it;
-  for now one runs a day, taking turns (so in New York, missing the Philadelphia freight gets
-  you the Cleveland one tomorrow). Several trains at once come later. Bulls patrol with
-  lanterns: stay out of the light, use parked cars as cover. Shunting cars knock you down.
-  Getting caught or missing the train costs a day and you try again.
+- **Yard** (`src/scenes/yard.js`): cross the
+  sidings from the west fence and get into an open boxcar before its freight pulls out. Tracks
+  are numbered from the west, the main line at the east fence last. Every freight leaving
+  tonight is there at once, each on its own track and leaving at its own time on the yard clock
+  (9 p.m. on, a minute a second), and nothing says which goes where. Sleuth it out: read a card
+  tacked to a car (its destination), the board in the yard office window (each engine number,
+  where it's bound, when it leaves), and an engine's number plate. What Scout learns is kept in
+  a notebook (saved with the journey, so it's there after a night in jail) and shown under each
+  track's number board. Engines about to leave are steaming. A standing freight is a wall from
+  fence to fence, but Scout can climb across between two of its cars: it takes a moment, in
+  plain view of any bull, and if the train starts to move mid-climb you're thrown clear and
+  stunned. Bulls patrol with lanterns: stay out of the light and use parked cars as cover.
+  Shunting cars, and freights pulling out, knock you down. Getting caught, or missing every
+  freight, costs a day. In the yard, Space (A on a controller) does things: hop on, climb,
+  read; Enter is for menus. The only way back to town is on foot, through the gate in the west
+  fence where you came in, and not with a bull chasing you.
 - **Locations** (`src/locations/<id>/index.js`): one hand-written module per stop holding
   everything about it: map position, blurb, its areas (street layout, buildings, signs, places
   with their stock, people and their lines, things to look at, exits, skyline, lamps) and the
@@ -97,6 +107,7 @@ Everything is driven by named actions (`src/core/input.js`), fed by both keyboar
 | ------- | ------------------- | ----------------------- |
 | move    | Arrows, WASD        | D-pad, left stick       |
 | confirm | Enter, Space        | A                       |
+| act     | Space               | A                       |
 | back    | Esc, Backspace      | B                       |
 | sprint  | Shift               | X, right trigger        |
 | pause   | Esc, P              | Start / Menu            |

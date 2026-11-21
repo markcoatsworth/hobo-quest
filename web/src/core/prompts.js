@@ -5,6 +5,7 @@ import { COLORS, FONTS } from './screen.js';
 
 const PAD = {
   confirm: { label: 'A', color: '#5fa04e' },
+  act: { label: 'A', color: '#5fa04e' },
   back: { label: 'B', color: '#c8463d' },
   sprint: { label: 'X', color: '#3d72c8' },
   pause: { label: '\u2261', color: '#6b6b6b' },
@@ -12,6 +13,7 @@ const PAD = {
 };
 const KEYS = {
   confirm: 'Enter',
+  act: 'Space',
   back: 'Esc',
   sprint: 'Shift',
   pause: 'Esc',

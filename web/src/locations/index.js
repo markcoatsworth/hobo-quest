@@ -83,7 +83,12 @@
 //     fromMap?,          false: the map doesn't offer the yard; you have to
 //                        walk to the yard sign in town (New York, Chicago)
 //     player,            your starting height (y) at the west fence
-//     tracks: [...],     sidings, west to east:
+//     office?: { x, y }, the yard office (the middle of it), with the board
+//                        of tonight's departures in its east window. Put it
+//                        in an aisle between tracks that no bull walks.
+//     tracks: [...],     sidings, west to east, numbered from 1; the main
+//                        line along the east fence comes after them:
+//                        { x }   kept clear, for a departing freight
 //                        { x, cars: 'BB.TBB' }   parked: one letter per car
 //                        length from the north fence, '.' an empty space
 //                        { x, moving: 'EBB', speed, dir: 1 | -1, at }
@@ -91,13 +96,21 @@
 //                        at = where its lead end starts (y)
 //                        Car letters: B boxcar, b brown boxcar, R reefer,
 //                        T tank, G gondola, E switch engine.
-//     trains: [...],     the departing freights: { to, cars?, open, departs }
-//                        to: the city it's bound for, which must be joined to
-//                        this one by a line in src/rail/network.json (checked
-//                        by `npm run check`); cars: letters from the engine
-//                        back; open: which car (index) has its door open;
-//                        departs: seconds until it pulls out. For now the yard
-//                        runs one a day, taking turns in this order.
+//     trains: [...],     the freights leaving tonight, all at once on their own
+//                        tracks: { to, track?, number, cars?, open, departs, card? }
+//                        to: the city it's bound for, joined to this one by a
+//                        line in src/rail/network.json; track: its track number
+//                        (default: the main line), a siding kept clear; number:
+//                        the engine's number, on its plate and on the office
+//                        board; cars: letters from the engine back; open: which
+//                        car (index) has its door open; departs: seconds until
+//                        it pulls out (each second is a minute on the yard
+//                        clock, from 9 p.m.); card: which car has a destination
+//                        card tacked on. Only cars 1 to 5 are inside the yard,
+//                        so the open door and the card go on those. Nothing on
+//                        screen says which train is which until Scout reads a
+//                        card, or the board and a plate. All checked by
+//                        `npm run check`.
 //     bulls: [...],      { x, y, dir }: each walks the aisle at x
 //   },
 // }

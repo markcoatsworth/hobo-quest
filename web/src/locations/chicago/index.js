@@ -101,6 +101,7 @@ export default {
   yard: {
     fromMap: false, // walk through the city to reach it
     player: 360,
+    office: { x: 691, y: 400 }, // the yard office, its board in the window
     tracks: [
       { x: 190, cars: 'BB.BRB' },
       { x: 333, cars: 'RR.RRB' },
@@ -111,7 +112,7 @@ export default {
       { x: 1050, cars: 'BRB.BB' },
     ],
     trains: [
-      { to: 'kansas_city', open: 3, departs: 55 },
+      { to: 'kansas_city', number: '2591', open: 3, departs: 55 },
     ],
     bulls: [
       { x: 1106, y: 500, dir: -1 },

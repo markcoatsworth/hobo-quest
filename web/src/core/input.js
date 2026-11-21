@@ -12,7 +12,8 @@ const KEY_BINDINGS = {
   down: ['ArrowDown', 'KeyS'],
   left: ['ArrowLeft', 'KeyA'],
   right: ['ArrowRight', 'KeyD'],
-  confirm: ['Enter', 'NumpadEnter', 'Space'],
+  confirm: ['Enter', 'NumpadEnter', 'Space'], // menus and dialogue
+  act: ['Space'], // doing things in the yard: hop on, climb, read
   back: ['Escape', 'Backspace'],
   pause: ['Escape', 'KeyP'],
   sprint: ['ShiftLeft', 'ShiftRight'],
@@ -32,6 +33,7 @@ const PAD_BINDINGS = {
   left: [14],
   right: [15],
   confirm: [0],
+  act: [0],
   back: [1],
   pause: [9],
   sprint: [2, 7],

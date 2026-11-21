@@ -15,7 +15,7 @@ import { panel, TitleScene } from './title.js';
 import { PauseMenu } from '../ui/pause.js';
 import { drawPartyRow, statusLine } from '../ui/party.js';
 import { AreaScene } from './area.js';
-import { todaysTrain, YardScene } from './yard.js';
+import { YardScene } from './yard.js';
 
 // Source-image pixels -> screen. Crops the source to the lower 48.
 const SRC_X = 20;
@@ -274,14 +274,13 @@ export class MapScene {
       if (this.trains.length === 0) {
         ctx.fillText('No freights leave from here.', cx, y + 300);
       } else {
+        // Where the freights go, not which is which: that's for the yard.
         ctx.fillText('Freights out of the yard', cx, y + 270);
-        const today = todaysTrain(city.yard, this.journey.day);
         ctx.font = `18px ${FONTS.body}`;
         this.trains.forEach((t, k) => {
           const days = rail_leg_days(this.here, t.to);
-          const isToday = t === today;
-          ctx.fillStyle = isToday ? COLORS.cream : 'rgba(244, 230, 200, 0.5)';
-          const label = `${LOCATIONS[t.to].name}, ${days} ${days === 1 ? 'day' : 'days'}${isToday ? ' (today)' : ''}`;
+          ctx.fillStyle = COLORS.cream;
+          const label = `${LOCATIONS[t.to].name}, ${days} ${days === 1 ? 'day' : 'days'}`;
           ctx.fillText(label, cx, y + 304 + k * 28);
         });
         if (city.yard.fromMap === false) {

@@ -27,6 +27,30 @@ for (const loc of Object.values(LOCATIONS)) {
   }
 }
 
+// Yards: each freight on a real, clear track of its own, with a unique engine number.
+for (const loc of Object.values(LOCATIONS)) {
+  const yard = loc.yard;
+  if (!yard) continue;
+  const main = yard.tracks.length + 1;
+  const used = new Set();
+  const numbers = new Set();
+  for (const t of yard.trains) {
+    const where = `${loc.id} yard, freight to ${t.to}`;
+    const track = t.track ?? main;
+    if (track < 1 || track > main) problems.push(`${where}: no track ${track}`);
+    else if (track < main && (yard.tracks[track - 1].cars || yard.tracks[track - 1].moving)) problems.push(`${where}: track ${track} isn't kept clear`);
+    if (used.has(track)) problems.push(`${where}: another freight is already on track ${track}`);
+    used.add(track);
+    if (!t.number) problems.push(`${where}: no engine number`);
+    else if (numbers.has(t.number)) problems.push(`${where}: engine number ${t.number} used twice`);
+    numbers.add(t.number);
+    // Only the engine and the first five cars are inside the yard; the rest
+    // of the train runs on past the north fence.
+    if (!(t.open >= 1 && t.open <= 5)) problems.push(`${where}: open door on car ${t.open}; it has to be on cars 1 to 5, inside the yard`);
+    if (t.card != null && !(t.card >= 1 && t.card <= 5)) problems.push(`${where}: card on car ${t.card}; it has to be on cars 1 to 5, inside the yard`);
+  }
+}
+
 for (const [region, ids] of Object.entries(PLAYLISTS)) {
   if (!LOCATIONS[region]) problems.push(`playlist "${region}": no such city`);
   for (const id of ids) if (!TRACKS[id]) problems.push(`playlist "${region}": no track "${id}"`);

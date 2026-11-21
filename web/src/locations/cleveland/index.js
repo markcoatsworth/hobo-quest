@@ -90,6 +90,7 @@ export default {
 
   yard: {
     player: 420,
+    office: { x: 448, y: 200 }, // the yard office, its board in the window
     tracks: [
       { x: 190, cars: 'GGG.GG' },
       { x: 362, moving: 'EGGG', speed: 85, dir: -1, at: 500 },
@@ -99,7 +100,7 @@ export default {
       { x: 1050, cars: 'GB.BBG' },
     ],
     trains: [
-      { to: 'toledo', open: 4, departs: 50 },
+      { to: 'toledo', number: '1146', open: 4, departs: 50 },
     ],
     bulls: [
       { x: 1106, y: 250, dir: 1 },
