@@ -1,14 +1,24 @@
 {
   "lines": [
     {
-      "from": "new_york", "to": "cleveland", "days": 2, "miles": 588,
-      "via": [[992,296],[980,268],[955,262],[900,272],[872,300]],
-      "scenery": [[0,"river"],[0.45,"hills"],[0.85,"mill"]]
+      "from": "new_york", "to": "buffalo", "days": 1, "miles": 401,
+      "via": [[992,296],[980,268],[955,262],[920,268]],
+      "scenery": [[0,"river"],[0.45,"hills"],[0.9,"mill"]]
     },
     {
-      "from": "cleveland", "to": "chicago", "days": 1, "miles": 332,
-      "via": [[800,338],[760,340]],
-      "scenery": [[0,"mill"],[0.25,"prairie"],[0.82,"mill"]]
+      "from": "buffalo", "to": "cleveland", "days": 1, "miles": 187,
+      "via": [[886,289],[873,305],[860,319]],
+      "scenery": [[0,"mill"],[0.2,"hills"],[0.8,"mill"]]
+    },
+    {
+      "from": "cleveland", "to": "toledo", "days": 1, "miles": 118,
+      "via": [[830,330],[815,332]],
+      "scenery": [[0,"mill"],[0.3,"prairie"],[0.85,"mill"]]
+    },
+    {
+      "from": "toledo", "to": "chicago", "days": 1, "miles": 220,
+      "via": [[795,338],[760,340]],
+      "scenery": [[0,"mill"],[0.2,"prairie"],[0.85,"mill"]]
     },
     {
       "from": "chicago", "to": "kansas_city", "days": 1, "miles": 434,
@@ -64,6 +74,46 @@
       "from": "phoenix", "to": "los_angeles", "days": 1, "miles": 323,
       "via": [[170,530],[132,515]],
       "scenery": [[0,"desert"],[0.6,"groves"]]
+    },
+    {
+      "from": "kansas_city", "to": "oklahoma_city", "days": 1, "miles": 351,
+      "via": [[575,435],[552,455],[542,472],[540,500]],
+      "scenery": [[0,"prairie"]]
+    },
+    {
+      "from": "nashville", "to": "oklahoma_city", "days": 2, "miles": 651,
+      "via": [[730,505],[700,520],[655,540],[605,530],[570,524]],
+      "scenery": [[0,"hills"],[0.25,"cotton"],[0.6,"hills"],[0.85,"prairie"]]
+    },
+    {
+      "from": "oklahoma_city", "to": "dallas", "days": 1, "miles": 221,
+      "via": [[541,545],[545,570],[549,590]],
+      "scenery": [[0,"prairie"]]
+    },
+    {
+      "from": "oklahoma_city", "to": "albuquerque", "days": 2, "miles": 525,
+      "via": [[505,523],[470,526],[454,525],[420,527],[385,525]],
+      "scenery": [[0,"prairie"],[0.55,"desert"]]
+    },
+    {
+      "from": "albuquerque", "to": "flagstaff", "days": 1, "miles": 291,
+      "via": [[340,522],[330,519],[317,508],[300,500],[280,511],[268,511]],
+      "scenery": [[0,"desert"],[0.75,"mountains"]]
+    },
+    {
+      "from": "albuquerque", "to": "el_paso", "days": 1, "miles": 256,
+      "via": [[346,530],[341,550],[337,565],[336,585],[339,600]],
+      "scenery": [[0,"desert"]]
+    },
+    {
+      "from": "flagstaff", "to": "phoenix", "days": 1, "miles": 146,
+      "via": [[248,520],[238,532],[228,542]],
+      "scenery": [[0,"mountains"],[0.45,"desert"]]
+    },
+    {
+      "from": "flagstaff", "to": "los_angeles", "days": 1, "miles": 421,
+      "via": [[230,500],[205,490],[170,490],[140,492]],
+      "scenery": [[0,"mountains"],[0.2,"desert"],[0.85,"groves"]]
     }
   ]
 }

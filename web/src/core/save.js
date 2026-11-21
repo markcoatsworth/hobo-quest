@@ -13,7 +13,7 @@ import { party_new } from '../systems/party.js';
 
 const KEY = 'hobo-quest.save';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const START_CITY = 'new_york';
 export const GOAL_CITY = 'los_angeles';
 
@@ -68,6 +68,10 @@ const OLD_ROUTES = {
   south: ['new_york', 'philadelphia', 'washington_dc', 'nashville', 'clarksdale', 'dallas', 'el_paso', 'phoenix', 'los_angeles'],
 };
 
+// Stops added on the northern line in version 3, between two cities that
+// used to be joined directly.
+const NORTHERN_STOPS = { 'new_york>cleveland': 'buffalo', 'cleveland>chicago': 'toledo' };
+
 /** Bring a save of any version up to SAVE_VERSION. */
 export function upgradeJourney(old) {
   let j = old;
@@ -88,6 +92,20 @@ export function upgradeJourney(old) {
   if (j.version === 1) {
     // Version 1 had no party or money: Scout alone, the sheriff's five dollars.
     j = { ...j, version: 2, money: START_MONEY, party: party_new() };
+  }
+  if (j.version === 2) {
+    // Version 3 put Buffalo and Toledo on the northern line: a trail that
+    // rode straight from New York to Cleveland, or Cleveland to Chicago,
+    // went through them, and a ride on either is now its first stop.
+    const trail = [j.trail[0]];
+    for (const city of j.trail.slice(1)) {
+      const between = NORTHERN_STOPS[`${trail[trail.length - 1]}>${city}`];
+      if (between) trail.push(between);
+      trail.push(city);
+    }
+    const r = j.riding;
+    const riding = r && NORTHERN_STOPS[`${r.from}>${r.to}`] ? { from: r.from, to: NORTHERN_STOPS[`${r.from}>${r.to}`] } : r;
+    j = { ...j, version: 3, trail, riding };
   }
   // Fill in anything newer than the save itself.
   return { ...newJourney(), ...j };

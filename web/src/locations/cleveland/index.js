@@ -99,7 +99,7 @@ export default {
       { x: 1050, cars: 'GB.BBG' },
     ],
     trains: [
-      { to: 'chicago', open: 4, departs: 50 },
+      { to: 'toledo', open: 4, departs: 50 },
     ],
     bulls: [
       { x: 1106, y: 250, dir: 1 },

@@ -104,6 +104,7 @@ export default {
     trains: [
       { to: 'los_angeles', open: 4, departs: 55 },
       { to: 'dallas', open: 4, departs: 55 },
+      { to: 'oklahoma_city', open: 3, departs: 50 },
     ],
     bulls: [
       { x: 1106, y: 300, dir: 1 },

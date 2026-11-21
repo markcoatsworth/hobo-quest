@@ -95,6 +95,7 @@ export default {
     ],
     trains: [
       { to: 'clarksdale', open: 3, departs: 45 },
+      { to: 'oklahoma_city', open: 4, departs: 50 },
     ],
     bulls: [{ x: 1106, y: 350, dir: 1 }],
   },

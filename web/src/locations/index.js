@@ -114,5 +114,12 @@ import dallas from './dallas/index.js';
 import el_paso from './el_paso/index.js';
 import phoenix from './phoenix/index.js';
 import los_angeles from './los_angeles/index.js';
+import oklahoma_city from './oklahoma_city/index.js';
+import albuquerque from './albuquerque/index.js';
+import flagstaff from './flagstaff/index.js';
+import buffalo from './buffalo/index.js';
+import toledo from './toledo/index.js';
 
-export const LOCATIONS = Object.fromEntries([new_york, cleveland, chicago, kansas_city, philadelphia, washington_dc, nashville, clarksdale, dallas, el_paso, phoenix, los_angeles].map((c) => [c.id, c]));
+export const LOCATIONS = Object.fromEntries(
+  [new_york, cleveland, chicago, kansas_city, philadelphia, washington_dc, nashville, clarksdale, dallas, el_paso, phoenix, los_angeles, oklahoma_city, albuquerque, flagstaff, buffalo, toledo].map((c) => [c.id, c]),
+);

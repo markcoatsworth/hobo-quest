@@ -162,7 +162,7 @@ export default {
     ],
     trains: [
       { to: 'philadelphia', open: 3, departs: 50 },
-      { to: 'cleveland', open: 3, departs: 50 },
+      { to: 'buffalo', open: 3, departs: 50 },
     ],
     bulls: [{ x: 1106, y: 420, dir: -1 }],
   },

@@ -43,6 +43,11 @@ const LABELS = {
   el_paso: [0, -14, 'center'],
   phoenix: [0, 20, 'center'],
   los_angeles: [8, 18, 'left'],
+  oklahoma_city: [-10, 4, 'right'],
+  albuquerque: [0, -12, 'center'],
+  flagstaff: [0, -12, 'center'],
+  buffalo: [-8, -8, 'right'],
+  toledo: [0, -12, 'center'],
 };
 
 const images = {};
