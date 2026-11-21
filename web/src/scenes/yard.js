@@ -12,6 +12,12 @@
 // yard office window lists each engine number with where it's bound and
 // when; and an engine's number plate says which train is which. What Scout
 // learns goes in a notebook (journey.yardNotes), kept for next time.
+//
+// Each yard is laid out in its own file, src/locations/<id>/yard.js, which
+// can also bring its own behaviour through hooks: setup(yard) once on the
+// way in (it can add `obstacles`), update(yard, dt) every frame, draw.ground
+// and draw.over for its own pictures, and `clues` for extra things to read.
+// The scene is passed in as `yard`; yard.top / yard.bottom are the fences.
 
 import { formatDate } from '../core/calendar.js';
 import { drawPrompts } from '../core/prompts.js';
@@ -85,7 +91,7 @@ export function yard_clock(minutes) {
 
 /**
  * What's in the notebook about a yard: { cards: { track: to }, plates: { track: number }, board }.
- * `cards` holds every destination learned for a track.
+ * `cards` holds every destination learned for a track, from a card or any other clue.
  */
 export function yard_notes(journey, cityId) {
   journey.yardNotes ??= {};
@@ -149,7 +155,11 @@ export class YardScene {
 
     this.trains = this.layout.trains.map((def) => this.buildTrain(def));
     this.office = office ? { x: office.x - OFFICE_W / 2, y: office.y - OFFICE_H / 2, w: OFFICE_W, h: OFFICE_H } : null;
+    // For the yard's own hooks: the fences, and anything solid they add.
     this.gateY = player; // the gate to town is where you came in
+    this.top = TOP;
+    this.bottom = BOTTOM;
+    this.obstacles = [];
 
     this.bulls = bulls.map((b, i) => ({
       x: b.x,
@@ -164,6 +174,8 @@ export class YardScene {
       lostFor: 0,
       sweep: i * 2.3, // phase of his lantern sweep
     }));
+
+    this.layout.setup?.(this);
 
     this.player = {
       x: START_X,
@@ -225,6 +237,7 @@ export class YardScene {
     for (const cut of this.cuts) list.push(...cut.cars);
     for (const train of this.trains) if (!train.gone) list.push(...train.cars);
     if (this.office) list.push(this.office);
+    list.push(...this.obstacles);
     return list;
   }
 
@@ -256,6 +269,7 @@ export class YardScene {
 
     this.updateTrains(dt);
     this.updateCuts(dt);
+    this.layout.update?.(this, dt);
     if (this.climb) this.updateClimb(dt);
     else this.updatePlayer(dt, input, blockers);
     for (const bull of this.bulls) this.updateBull(bull, dt, blockers);
@@ -374,6 +388,10 @@ export class YardScene {
     }
     // The gate back to town, where you came in.
     options.push({ kind: 'leave', x: 14, y: this.gateY, range: 34, verb: 'Back to town' });
+    // The yard's own things to read (its yard.js `clues`).
+    for (const clue of this.layout.clues ?? []) {
+      options.push({ kind: 'clue', clue, x: clue.x, y: clue.y, range: clue.range ?? READ_RANGE, verb: clue.verb ?? 'Take a look' });
+    }
     if (this.office) {
       const o = this.office;
       options.push({ kind: 'board', x: o.x + o.w + 14, y: o.y + o.h / 2, range: READ_RANGE + 6, verb: 'Read the board' });
@@ -414,6 +432,11 @@ export class YardScene {
     } else if (f.kind === 'plate') {
       this.notes.plates[f.train.track] = f.train.number;
       this.notice = { title: `Track ${f.train.track}`, lines: [`Engine No. ${f.train.number}`], t: 1 };
+    } else if (f.kind === 'clue') {
+      const c = f.clue;
+      // A clue can tell the notebook where the freight on a track is bound.
+      if (c.learn) this.notes.cards[c.learn.track] = c.learn.to;
+      this.notice = { title: c.title, lines: c.lines, t: 1 };
     } else if (f.kind === 'board') {
       this.notes.board = true;
       const lines = [...this.trains]
@@ -654,6 +677,7 @@ export class YardScene {
     const blockers = this.blockers();
     this.drawGround(ctx);
     for (const x of this.trackXs) drawTrack(ctx, x);
+    this.layout.draw?.ground?.(ctx, this);
     this.drawFences(ctx);
     drawTownGate(ctx, this.gateY);
 
@@ -677,6 +701,7 @@ export class YardScene {
 
     this.drawPlayer(ctx);
     for (const b of this.bulls) this.drawBull(ctx, b);
+    this.layout.draw?.over?.(ctx, this);
     // Over Scout's head, kept on screen by the fences.
     const lx = Math.max(80, Math.min(W - 80, this.player.x));
     if (this.climb) label(ctx, 'Climbing…', lx, this.player.y - 30, COLORS.cream, 15);

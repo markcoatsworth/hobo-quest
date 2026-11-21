@@ -45,7 +45,7 @@ Title → opening cutscene → the family home → New York → yard → ride �
   road to the city at the far end. It draws itself with the opening cutscene's own art
   (`src/art/hudson.js`, shared by both), so the cutscene's last frame and the farmyard's first
   are the same picture: the sheriff drives off and you're already playing.
-- **Yard** (`src/scenes/yard.js`): cross the
+- **Yard** (`src/scenes/yard.js`, each city's own in `src/locations/<id>/yard.js`): cross the
   sidings from the west fence and get into an open boxcar before its freight pulls out. Tracks
   are numbered from the west, the main line at the east fence last. Every freight leaving
   tonight is there at once, each on its own track and leaving at its own time on the yard clock
@@ -154,7 +154,9 @@ force touch mode (e.g. with the browser's device emulation), `?touch=0` to force
 - `src/ui/`: the pause menu, the Settings panel, the corner buttons
 - `src/touch/`: phones and tablets only (detection, landscape, on-screen controls)
 - `src/scenes/`: title, map, town, yard, ride, cutscene and placeholder screens
-- `src/locations/`: one folder per stop, with subfolders for bigger areas (`new_york/family_home/`)
+- `src/locations/`: one folder per stop: `index.js` (who and where), `town.js` (the main street),
+  `yard.js` (the rail yard, with any hooks of its own), and subfolders for bigger areas
+  (`new_york/family_home/`)
 - `src/characters/`: one folder per major character (the player and possible party members)
 - `src/cutscenes/`: one folder per cutscene (opening, happy and sad endings), played by
   `src/scenes/cutscene.js`; any video files go in `public/cutscenes/<id>/`

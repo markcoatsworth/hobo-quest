@@ -1,6 +1,10 @@
 // Every stop on the journey, each hand-built in its own folder:
 //
-//   src/locations/<id>/index.js   the location's definition (below)
+//   src/locations/<id>/index.js   who and where: id, name, map position,
+//                                 blurb; it pulls in the rest
+//   src/locations/<id>/town.js    the main street (`town`, below)
+//   src/locations/<id>/yard.js    the rail yard (`yard`, below), with any
+//                                 behaviour of its own (hooks, below)
 //   src/locations/<id>/<area>/    its other areas, when it has some (New
 //                                 York's family_home/)
 //   public/locations/<id>/        art, music etc. for it, when there is some
@@ -112,6 +116,21 @@
 //                        card, or the board and a plate. All checked by
 //                        `npm run check`.
 //     bulls: [...],      { x, y, dir }: each walks the aisle at x
+//
+//     Hooks, for what's particular to one yard (all optional). Each gets
+//     the yard scene as `yard` (yard.t: seconds in; yard.top / yard.bottom:
+//     the fences; yard.player, yard.trains, yard.bulls, yard.notes):
+//     setup(yard),       once, on the way in. Push rects onto yard.obstacles
+//                        for anything solid: they block walking and sight.
+//     update(yard, dt),  every frame
+//     draw: { ground(ctx, yard), over(ctx, yard) }
+//                        ground: under the cars, over the cinders; over: on
+//                        top of everything but the header
+//     clues: [...],      more things to read, beside the cards, plates and
+//                        board: { x, y, verb, title, lines, learn?, range? },
+//                        shown while Scout stands within range.
+//                        learn: { track, to } puts that freight's destination
+//                        in the notebook (Kansas City's tally board)
 //   },
 // }
 

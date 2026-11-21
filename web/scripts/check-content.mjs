@@ -49,6 +49,13 @@ for (const loc of Object.values(LOCATIONS)) {
     if (!(t.open >= 1 && t.open <= 5)) problems.push(`${where}: open door on car ${t.open}; it has to be on cars 1 to 5, inside the yard`);
     if (t.card != null && !(t.card >= 1 && t.card <= 5)) problems.push(`${where}: card on car ${t.card}; it has to be on cars 1 to 5, inside the yard`);
   }
+  // A clue that teaches the notebook names a track with a freight, and a real city.
+  for (const clue of yard.clues ?? []) {
+    if (!clue.learn) continue;
+    const where = `${loc.id} yard, clue "${clue.title}"`;
+    if (!yard.trains.some((t) => (t.track ?? main) === clue.learn.track)) problems.push(`${where}: no freight on track ${clue.learn.track}`);
+    if (!LOCATIONS[clue.learn.to]) problems.push(`${where}: no such place as "${clue.learn.to}"`);
+  }
 }
 
 for (const [region, ids] of Object.entries(PLAYLISTS)) {
